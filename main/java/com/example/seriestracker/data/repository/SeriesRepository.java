@@ -1,0 +1,270 @@
+package com.example.seriestracker.data.repository;
+
+import android.app.Application;
+import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
+
+import androidx.lifecycle.LiveData;
+
+import com.example.seriestracker.data.SeriesDatabase;
+import com.example.seriestracker.data.dao.SeriesDao;
+import com.example.seriestracker.data.entities.Collection;
+import com.example.seriestracker.data.entities.CollectionWithSeries;
+import com.example.seriestracker.data.entities.Series;
+import com.example.seriestracker.data.entities.SeriesCollectionCrossRef;
+
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+public class SeriesRepository {
+    private SeriesDao seriesDao;
+    private ExecutorService executor = Executors.newSingleThreadExecutor();
+    private Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    // Статическое поле для синглтона
+    private static SeriesRepository instance;
+
+    // Приватный конструктор
+    public SeriesRepository(Application application) {
+        SeriesDatabase database = SeriesDatabase.getDatabase(application);
+        seriesDao = database.seriesDao();
+    }
+
+    // Статический метод для получения экземпляра с Application
+    public static synchronized SeriesRepository getInstance(Application application) {
+        if (instance == null) {
+            instance = new SeriesRepository(application);
+        }
+        return instance;
+    }
+
+    // Дополнительный метод для получения существующего экземпляра
+    public static synchronized SeriesRepository getInstance() {
+        if (instance == null) {
+            throw new IllegalStateException("Repository не инициализирован. Сначала вызовите getInstance(Application)");
+        }
+        return instance;
+    }
+
+    // === Коллекции ===
+    public LiveData<List<Collection>> getAllCollections() {
+        return seriesDao.getAllCollections();
+    }
+
+    public LiveData<Collection> getCollectionById(long collectionId) {
+        return seriesDao.getCollectionById(collectionId);
+    }
+
+    public void insertCollection(Collection collection) {
+        executor.execute(() -> seriesDao.insertCollection(collection));
+    }
+
+    public void deleteCollection(long collectionId) {
+        executor.execute(() -> seriesDao.deleteCollection(collectionId));
+    }
+
+    public void deleteCollection(Collection collection) {
+        executor.execute(() -> {
+            // Удаляем сначала все связи
+            deleteAllSeriesCollectionRelationsForCollection(collection.getId());
+            // Затем удаляем саму коллекцию
+            seriesDao.deleteCollection(collection.getId());
+        });
+    }
+
+    public void deleteAllSeriesCollectionRelationsForCollection(long collectionId) {
+        executor.execute(() -> {
+            // Удаляем все связи сериалов с этой коллекцией
+            seriesDao.deleteAllSeriesCollectionRelationsForCollection(collectionId);
+        });
+    }
+
+    // === Сериалы ===
+    public LiveData<List<Series>> getAllSeries() {
+        return seriesDao.getAllSeries();
+    }
+
+    public LiveData<Series> getSeriesById(long seriesId) {
+        return seriesDao.getSeriesById(seriesId);
+    }
+
+    public void insertSeries(Series series) {
+        executor.execute(() -> seriesDao.insertSeries(series));
+    }
+
+    public void updateSeries(Series series) {
+        executor.execute(() -> seriesDao.updateSeries(series));
+    }
+
+    public void deleteSeries(long seriesId) {
+        executor.execute(() -> seriesDao.deleteSeries(seriesId));
+    }
+
+    public void insertSeriesWithCollections(Series series, List<Long> collectionIds) {
+        executor.execute(() -> {
+            long seriesId = seriesDao.insertSeries(series);
+            if (collectionIds != null) {
+                for (Long collectionId : collectionIds) {
+                    SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
+                    seriesDao.insertCrossRef(crossRef);
+                }
+            }
+        });
+    }
+
+    // === Статусы ===
+    public void updateSeriesWatchedStatus(long seriesId, boolean isWatched) {
+        executor.execute(() -> {
+            seriesDao.updateSeriesWatchedStatus(seriesId, isWatched);
+            seriesDao.updateCrossRefWatchedStatus(seriesId, isWatched);
+        });
+    }
+
+    public void updateSeriesFavoriteStatus(long seriesId, boolean isFavorite) {
+        executor.execute(() -> seriesDao.updateSeriesFavoriteStatus(seriesId, isFavorite));
+    }
+
+    public void updateSeriesStatus(long seriesId, String status) {
+        executor.execute(() -> seriesDao.updateSeriesStatus(seriesId, status));
+    }
+
+    // === Получение данных ===
+    public LiveData<List<Series>> getSeriesInCollection(long collectionId) {
+        return seriesDao.getSeriesInCollection(collectionId);
+    }
+
+    public LiveData<List<CollectionWithSeries>> getCollectionsWithSeries() {
+        return seriesDao.getCollectionsWithSeries();
+    }
+
+    public void addSeriesToCollection(long seriesId, long collectionId) {
+        executor.execute(() -> {
+            // Проверяем, есть ли уже связь
+            int count = seriesDao.isSeriesInCollection(seriesId, collectionId);
+            if (count == 0) {
+                SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
+                seriesDao.insertCrossRef(crossRef);
+            }
+        });
+    }
+
+    public void removeSeriesFromCollection(long seriesId, long collectionId) {
+        executor.execute(() -> seriesDao.removeSeriesFromCollection(seriesId, collectionId));
+    }
+
+    public LiveData<List<Collection>> getCollectionsForSeries(long seriesId) {
+        return seriesDao.getCollectionsForSeries(seriesId);
+    }
+
+    public LiveData<Integer> getSeriesCountInCollection(long collectionId) {
+        return seriesDao.getSeriesCountInCollection(collectionId);
+    }
+
+    // === Методы для EditSeriesScreen ===
+    public void insertSeriesCollectionCrossRef(SeriesCollectionCrossRef crossRef) {
+        executor.execute(() -> seriesDao.insertCrossRef(crossRef));
+    }
+
+    public void deleteSeriesCollectionCrossRef(long seriesId, long collectionId) {
+        executor.execute(() -> seriesDao.deleteSeriesCollectionCrossRef(seriesId, collectionId));
+    }
+
+    // Метод для получения связи (если нужен)
+    public SeriesCollectionCrossRef getCrossRef(long seriesId, long collectionId) {
+        // Внимание: этот метод не может быть вызван из основного потока!
+        // Используйте его в executor.execute()
+        return seriesDao.getCrossRef(seriesId, collectionId);
+    }
+
+    // === Методы проверки существования ===
+    public LiveData<Boolean> doesCollectionExist(String collectionName) {
+        return seriesDao.doesCollectionExist(collectionName);
+    }
+
+    public LiveData<Boolean> doesSeriesExist(String seriesTitle) {
+        return seriesDao.doesSeriesExist(seriesTitle);
+    }
+
+    // Обновление коллекции
+    public void updateCollection(Collection collection) {
+        executor.execute(() -> seriesDao.updateCollection(collection));
+    }
+
+    // === Методы для резервного копирования (синхронные версии) ===
+    public List<Collection> getAllCollectionsSync() {
+        try {
+            Future<List<Collection>> future = executor.submit(() ->
+                    seriesDao.getAllCollectionsSync()
+            );
+            return future.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public List<Series> getAllSeriesSync() {
+        try {
+            Future<List<Series>> future = executor.submit(() ->
+                    seriesDao.getAllSeriesSync()
+            );
+            return future.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public List<SeriesCollectionCrossRef> getAllRelationsSync() {
+        try {
+            Future<List<SeriesCollectionCrossRef>> future = executor.submit(() ->
+                    seriesDao.getAllRelationsSync()
+            );
+            return future.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public void deleteAllData() {
+        executor.execute(() -> seriesDao.deleteAllData());
+    }
+
+    // === Синхронные методы для восстановления ===
+    public long insertCollectionSync(Collection collection) {
+        try {
+            Future<Long> future = executor.submit(() ->
+                    seriesDao.insertCollectionSync(collection)
+            );
+            return future.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+    public long insertSeriesSync(Series series) {
+        try {
+            Future<Long> future = executor.submit(() ->
+                    seriesDao.insertSeriesSync(series)
+            );
+            return future.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+    public void insertCrossRefSync(SeriesCollectionCrossRef crossRef) {
+        executor.execute(() -> seriesDao.insertCrossRefSync(crossRef));
+    }
+
+    // === Метод для вставки связи ===
+    public void insertCrossRef(SeriesCollectionCrossRef crossRef) {
+        executor.execute(() -> seriesDao.insertCrossRef(crossRef));
+    }
+}

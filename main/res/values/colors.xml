@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Основные цвета Material Design -->
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Фон и поверхности -->
+    <color name="background">#FFFFFFFF</color>
+    <color name="surface">#FFFFFFFF</color>
+    <color name="background_white">#FFFFFFFF</color>
+    <color name="background_gray">#FFF5F5F5</color>
+
+    <!-- Текст -->
+    <color name="text_primary">#DE000000</color>
+    <color name="text_secondary">#8A000000</color>
+    <color name="text_hint">#61000000</color>
+    <color name="text_dark">#FF212121</color>
+    <color name="text_gray">#FF757575</color>
+    <color name="text_light">#FFFFFFFF</color>
+
+    <!-- Акцентные цвета -->
+    <color name="primary">#FF2196F3</color>
+    <color name="primary_dark">#FF1976D2</color>
+    <color name="accent">#FFFF4081</color>
+
+    <!-- Синие оттенки -->
+    <color name="primary_blue">#FF2196F3</color>
+    <color name="primary_blue_light">#FF64B5F6</color>
+    <color name="primary_blue_dark">#FF1976D2</color>
+
+    <!-- Цвета статусов -->
+    <color name="status_planned">#FFFF9800</color>     <!-- Оранжевый -->
+    <color name="status_watching">#FF2196F3</color>    <!-- Синий -->
+    <color name="status_completed">#FF4CAF50</color>   <!-- Зеленый -->
+    <color name="status_dropped">#FFF44336</color>     <!-- Красный -->
+
+    <!-- Состояния и системные цвета -->
+    <color name="error">#FFF44336</color>
+    <color name="success">#FF4CAF50</color>
+    <color name="warning">#FFFF9800</color>
+
+    <!-- Разделители -->
+    <color name="divider">#1F000000</color>
+
+    <!-- Дополнительные полезные цвета -->
+    <color name="gray_light">#FFE0E0E0</color>
+    <color name="gray_dark">#FF616161</color>
+    <color name="transparent_black">#33000000</color>
+    <color name="transparent_white">#33FFFFFF</color> <!-- ДОБАВЛЕНО -->
+    <color name="green">#4CAF50</color>          <!-- Добавлен -->
+    <color name="green_dark">#388E3C</color>     <!-- Добавлен -->
+    <color name="red">#F44336</color>           <!-- Добавлен -->
+    <color name="orange">#FF9800</color>        <!-- Добавлен -->
+    <color name="yellow">#FFEB3B</color>        <!-- Добавлен -->
+    <color name="purple">#9C27B0</color>        <!-- Добавлен -->
+    <color name="pink">#E91E63</color>          <!-- Добавлен -->
+
+    <!-- Цвета ошибок и состояний -->
+    <color name="red_error">#F44336</color>
+
+    <!-- Цвета для избранного -->
+    <color name="favorite_star">#FFC107</color> <!-- Золотистый цвет для избранного -->
+
+    <!-- Цвета для поиска и фильтров -->
+    <color name="search_background">#FFF5F5F5</color> <!-- ДОБАВЛЕНО -->
+    <color name="chip_selected">#FF2196F3</color> <!-- ДОБАВЛЕНО -->
+    <color name="chip_unselected">#FFF5F5F5</color> <!-- ДОБАВЛЕНО -->
+
+    <!-- Цвета для кнопок и состояний -->
+    <color name="button_disabled">#FFE0E0E0</color> <!-- ДОБАВЛЕНО -->
+    <color name="button_pressed">#FF1976D2</color> <!-- ДОБАВЛЕНО -->
+
+    <!-- Цвета для карточек -->
+    <color name="card_shadow">#1F000000</color> <!-- ДОБАВЛЕНО -->
+</resources>
