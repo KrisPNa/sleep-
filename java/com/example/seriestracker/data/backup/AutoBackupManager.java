@@ -1,9 +1,14 @@
 package com.example.seriestracker.data.backup;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Environment;
 import android.util.Log;
+
+import androidx.core.content.ContextCompat;
 
 import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.data.entities.Series;
@@ -247,10 +252,44 @@ public class AutoBackupManager {
 
     /**
      * Получает директорию для резервных копий
-     * По умолчанию: /storage/emulated/0/Android/data/com.example.seriestracker/files/backups
+     * По умолчанию: /storage/emulated/0/Download/SeriesTracker/backups для Android 10+
+     * или /storage/emulated/0/Backup/SeriesTracker/backups для более ранних версий
+     * Эта директория не удаляется при удалении приложения
      */
     private File getBackupDirectory() {
-        // Используем стандартную папку приложения
+        // Проверяем наличие необходимых разрешений
+        boolean hasWritePermission = ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED;
+
+        // Для Android 10+ (API 29+) используем scoped storage
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Используем папку Download для бэкапов, так как это разрешено в scoped storage
+            File backupDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "SeriesTracker");
+            if (!backupDir.exists()) {
+                backupDir.mkdirs();
+            }
+
+            if (backupDir.exists()) {
+                return new File(backupDir, "backups");
+            }
+        }
+        // Для старых версий Android, если есть разрешение
+        else if (hasWritePermission) {
+            // Используем общую директорию, которая остается после удаления приложения
+            File externalStorageDir = Environment.getExternalStoragePublicDirectory("Backup");
+            File appBackupDir = new File(externalStorageDir, "SeriesTracker");
+
+            // Создаем директорию приложения в общей папке бэкапов
+            if (!appBackupDir.exists()) {
+                appBackupDir.mkdirs();
+            }
+
+            if (appBackupDir.exists()) {
+                return new File(appBackupDir, "backups");
+            }
+        }
+
+        // Fallback на стандартную папку приложения если нет доступа к общей директории
         File externalFilesDir = context.getExternalFilesDir(null);
         if (externalFilesDir != null) {
             return new File(externalFilesDir, "backups");
@@ -261,18 +300,54 @@ public class AutoBackupManager {
     }
 
     /**
-     * Ищет резервные копии в стандартной папке и подпапках
+     * Ищет резервные копии в основной папке и подпапках
      */
     public File[] getAvailableBackups() {
-        File backupDir = getBackupDirectory();
         List<File> backupFiles = new java.util.ArrayList<>();
 
+        // Ищем в основной папке (в зависимости от версии Android)
+        File backupDir = getBackupDirectory();
         if (backupDir.exists()) {
-            // Ищем во всех поддиректориях
             findBackupFiles(backupDir, backupFiles);
         }
 
+        // Также ищем в старой папке приложения для совместимости
+        File oldBackupDir = getOldBackupDirectory();
+        if (!backupDir.equals(oldBackupDir) && oldBackupDir.exists()) {
+            findBackupFiles(oldBackupDir, backupFiles);
+        }
+
+        // Ищем в альтернативных папках для совместимости
+        File alternativeBackupDir = getAlternativeBackupDirectory();
+        if (!backupDir.equals(alternativeBackupDir) && !oldBackupDir.equals(alternativeBackupDir) && alternativeBackupDir.exists()) {
+            findBackupFiles(alternativeBackupDir, backupFiles);
+        }
+
         return backupFiles.toArray(new File[0]);
+    }
+
+    /**
+     * Возвращает старую директорию резервных копий (внутри папки приложения)
+     */
+    private File getOldBackupDirectory() {
+        File externalFilesDir = context.getExternalFilesDir(null);
+        if (externalFilesDir != null) {
+            return new File(externalFilesDir, "backups");
+        }
+        return new File(context.getFilesDir(), "backups");
+    }
+
+    /**
+     * Возвращает альтернативную директорию для совместимости (старая Backup папка)
+     */
+    private File getAlternativeBackupDirectory() {
+        // Для совместимости с предыдущими версиями
+        File externalStorageDir = Environment.getExternalStoragePublicDirectory("Backup");
+        File appBackupDir = new File(externalStorageDir, "SeriesTracker");
+        if (appBackupDir.exists()) {
+            return new File(appBackupDir, "backups");
+        }
+        return new File(context.getFilesDir(), "backups");
     }
 
     private void findBackupFiles(File directory, List<File> backupFiles) {
@@ -367,5 +442,34 @@ public class AutoBackupManager {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Получает путь к общей папке резервных копий
+     */
+    public String getCommonBackupPath() {
+        // Проверяем наличие необходимых разрешений
+        boolean hasWritePermission = ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED;
+
+        // Для Android 10+ (API 29+) используем папку Downloads
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            File backupDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "SeriesTracker");
+            return backupDir.getAbsolutePath();
+        }
+        // Для старых версий Android, если есть разрешение
+        else if (hasWritePermission) {
+            File externalStorageDir = Environment.getExternalStoragePublicDirectory("Backup");
+            File appBackupDir = new File(externalStorageDir, "SeriesTracker");
+            return appBackupDir.getAbsolutePath();
+        }
+
+        // Fallback на директорию приложения
+        File externalFilesDir = context.getExternalFilesDir(null);
+        if (externalFilesDir != null) {
+            return new File(externalFilesDir, "backups").getAbsolutePath();
+        }
+
+        return new File(context.getFilesDir(), "backups").getAbsolutePath();
     }
 }

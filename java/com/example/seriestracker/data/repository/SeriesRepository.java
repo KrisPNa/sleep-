@@ -1,6 +1,7 @@
 package com.example.seriestracker.data.repository;
 
 import android.app.Application;
+import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -14,7 +15,6 @@ import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.data.entities.SeriesCollectionCrossRef;
 
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -24,9 +24,29 @@ public class SeriesRepository {
     private ExecutorService executor = Executors.newSingleThreadExecutor();
     private Handler mainHandler = new Handler(Looper.getMainLooper());
 
+    // Статическое поле для синглтона
+    private static SeriesRepository instance;
+
+    // Приватный конструктор
     public SeriesRepository(Application application) {
         SeriesDatabase database = SeriesDatabase.getDatabase(application);
         seriesDao = database.seriesDao();
+    }
+
+    // Статический метод для получения экземпляра с Application
+    public static synchronized SeriesRepository getInstance(Application application) {
+        if (instance == null) {
+            instance = new SeriesRepository(application);
+        }
+        return instance;
+    }
+
+    // Дополнительный метод для получения существующего экземпляра
+    public static synchronized SeriesRepository getInstance() {
+        if (instance == null) {
+            throw new IllegalStateException("Repository не инициализирован. Сначала вызовите getInstance(Application)");
+        }
+        return instance;
     }
 
     // === Коллекции ===
