@@ -154,4 +154,16 @@ public class SeriesViewModel extends AndroidViewModel {
         Collection collection = new Collection(name, color);
         repository.insertCollection(collection);
     }
+
+    public void deleteAllSeriesCollectionRelationsForSeries(long seriesId) {
+        repository.deleteAllSeriesCollectionRelationsForSeries(seriesId);
+    }
+
+    public void updateSeriesCollections(long seriesId, List<Long> collectionIds) {
+        repository.updateSeriesCollections(seriesId, collectionIds);
+    }
+
+    public void replaceSeriesCollections(long seriesId, List<Long> collectionIds) {
+        repository.replaceSeriesCollections(seriesId, collectionIds);
+    }
 }

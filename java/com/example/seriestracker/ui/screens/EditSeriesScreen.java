@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -213,6 +214,20 @@ public class EditSeriesScreen extends Fragment {
             return;
         }
 
+        // ПЕРЕД открытием диалога заново загружаем ТЕКУЩИЕ коллекции сериала
+        viewModel.getCollectionsForSeries(series.getId()).observe(getViewLifecycleOwner(), currentCollections -> {
+            // Очищаем выбранные коллекции и заполняем заново
+            selectedCollections.clear();
+            if (currentCollections != null) {
+                selectedCollections.addAll(currentCollections);
+            }
+
+            // ТЕПЕРЬ показываем диалог с правильными галочками
+            showCollectionsDialogInternal();
+        });
+    }
+
+    private void showCollectionsDialogInternal() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setTitle("Выберите коллекции");
 
@@ -224,7 +239,7 @@ public class EditSeriesScreen extends Fragment {
             Collection collection = allCollections.get(i);
             collectionNames[i] = collection.getName();
 
-            // Проверяем, выбрана ли коллекция
+            // Проверяем, выбрана ли коллекция в selectedCollections
             boolean isChecked = false;
             for (Collection selected : selectedCollections) {
                 if (selected.getId() == collection.getId()) {
@@ -249,14 +264,32 @@ public class EditSeriesScreen extends Fragment {
 
         builder.setPositiveButton("Готово", (dialog, which) -> {
             dialog.dismiss();
+            // После закрытия диалога показываем обновленный текст
+            updateSelectedCollectionsText();
         });
 
         builder.setNegativeButton("Отмена", (dialog, which) -> {
             dialog.dismiss();
+            // При отмене возвращаемся к исходному состоянию
+            loadCollectionsForSeries();
         });
 
         AlertDialog dialog = builder.create();
         dialog.show();
+    }
+
+    private void loadCollectionsForSeries() {
+        if (series == null) return;
+
+        // Загружаем текущие коллекции сериала
+        viewModel.getCollectionsForSeries(series.getId()).observe(getViewLifecycleOwner(),
+                seriesCollections -> {
+                    if (seriesCollections != null) {
+                        selectedCollections.clear();
+                        selectedCollections.addAll(seriesCollections);
+                        updateSelectedCollectionsText();
+                    }
+                });
     }
 
     private void setupStatusSpinner() {
@@ -297,7 +330,7 @@ public class EditSeriesScreen extends Fragment {
 
         // Обработчик для кнопки выбора коллекций
         collectionsButton.setOnClickListener(v -> {
-            showCollectionsDialog();
+            showCollectionsDialog(); // Используем новый метод
         });
 
         saveButton.setOnClickListener(v -> saveSeries());
@@ -348,7 +381,7 @@ public class EditSeriesScreen extends Fragment {
         if (!newTitle.equals(series.getTitle())) {
             // Название изменилось, проверяем, нет ли другого сериала с таким названием
             viewModel.doesSeriesExist(newTitle).observe(getViewLifecycleOwner(), exists -> {
-                if (exists != null && exists) { // exists это Boolean
+                if (exists != null && exists) {
                     // Сериал с таким названием уже существует
                     Toast.makeText(getContext(),
                             "Сериал \"" + newTitle + "\" уже существует",
@@ -368,23 +401,26 @@ public class EditSeriesScreen extends Fragment {
 
     // Новый метод для обновления данных сериала
     private void updateSeriesData(String title) {
+        // 1. Обновляем данные сериала
         series.setTitle(title);
         series.setNotes(notesEditText.getText().toString().trim());
         series.setGenre(genreEditText.getText().toString().trim());
 
+        // Обновляем количество сезонов
         try {
             series.setSeasons(Integer.parseInt(seasonsEditText.getText().toString()));
         } catch (NumberFormatException e) {
             series.setSeasons(0);
         }
 
+        // Обновляем количество серий
         try {
             series.setEpisodes(Integer.parseInt(episodesEditText.getText().toString()));
         } catch (NumberFormatException e) {
             series.setEpisodes(0);
         }
 
-        // Обновляем изображение
+        // Обновляем изображение (если выбрано новое)
         if (selectedImageUri != null) {
             series.setImageUri(selectedImageUri.toString());
         }
@@ -393,38 +429,60 @@ public class EditSeriesScreen extends Fragment {
         String selectedStatus = statusSpinner.getText().toString();
         series.setStatus(getStatusValue(selectedStatus));
 
-        // Автоматически отмечаем как просмотренное если статус "Завершено"
+        // Автоматически отмечаем как просмотренное, если статус "Завершено"
         series.setIsWatched("Завершено".equals(selectedStatus));
 
-        // Обновляем чекбокс избранного
+        // Обновляем избранное
         series.setIsFavorite(favoriteCheckBox.isChecked());
 
-        // Сохраняем сериал в БД
+        // 2. Сохраняем сериал в БД
         viewModel.updateSeries(series);
 
-        // Обновляем связи с коллекциями
-        updateCollectionRelationships();
+        // 3. Создаем список ID выбранных коллекций
+        List<Long> selectedCollectionIds = new ArrayList<>();
+        for (Collection collection : selectedCollections) {
+            selectedCollectionIds.add(collection.getId());
+        }
 
+        // 4. ПРОСТО ЗАМЕНЯЕМ все связи сериала
+        viewModel.replaceSeriesCollections(series.getId(), selectedCollectionIds);
+
+        // 5. Показываем сообщение об успехе
         Toast.makeText(getContext(), "Сериал обновлен", Toast.LENGTH_SHORT).show();
 
-        // Возвращаемся назад
+        // 6. Возвращаемся назад
         requireActivity().getSupportFragmentManager().popBackStack();
     }
+
     private void updateCollectionRelationships() {
         if (series == null) return;
 
-        // Сначала удаляем все текущие связи
+        // Используем CountDownLatch или просто удаляем все связи и добавляем новые
+        // Самый простой и надежный способ: сначала удаляем ВСЕ связи этого сериала,
+        // затем добавляем выбранные
+
+        // Получаем все коллекции для этого сериала
         viewModel.getCollectionsForSeries(series.getId()).observe(getViewLifecycleOwner(), currentCollections -> {
+            // Этот код выполнится когда будут загружены текущие коллекции
             if (currentCollections != null) {
+                // Сначала удаляем ВСЕ текущие связи
                 for (Collection collection : currentCollections) {
                     viewModel.removeSeriesFromCollection(series.getId(), collection.getId());
                 }
+
+                // Теперь добавляем ВСЕ выбранные коллекции
+                for (Collection collection : selectedCollections) {
+                    viewModel.addSeriesToCollection(series.getId(), collection.getId());
+                }
+            } else {
+                // Если нет текущих коллекций, просто добавляем выбранные
+                for (Collection collection : selectedCollections) {
+                    viewModel.addSeriesToCollection(series.getId(), collection.getId());
+                }
             }
 
-            // Затем добавляем новые связи
-            for (Collection collection : selectedCollections) {
-                viewModel.addSeriesToCollection(series.getId(), collection.getId());
-            }
+            // После обновления связей показываем Toast
+            Toast.makeText(getContext(), "Коллекции обновлены", Toast.LENGTH_SHORT).show();
         });
     }
 

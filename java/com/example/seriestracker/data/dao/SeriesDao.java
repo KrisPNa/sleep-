@@ -156,4 +156,9 @@ public interface SeriesDao {
 
     @Query("SELECT * FROM series_collection_cross_ref")
     List<SeriesCollectionCrossRef> getAllRelationsSync();
+
+    @Query("DELETE FROM series_collection_cross_ref WHERE seriesId = :seriesId")
+    void deleteAllSeriesCollectionRelationsForSeries(long seriesId);
+
+
 }

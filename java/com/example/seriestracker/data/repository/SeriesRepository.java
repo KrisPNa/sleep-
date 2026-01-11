@@ -267,4 +267,41 @@ public class SeriesRepository {
     public void insertCrossRef(SeriesCollectionCrossRef crossRef) {
         executor.execute(() -> seriesDao.insertCrossRef(crossRef));
     }
+
+    public void deleteAllSeriesCollectionRelationsForSeries(long seriesId) {
+        executor.execute(() -> {
+            // Удаляем все связи сериала с коллекциями
+            seriesDao.deleteAllSeriesCollectionRelationsForSeries(seriesId);
+        });
+    }
+
+    public void updateSeriesCollections(long seriesId, List<Long> newCollectionIds) {
+        executor.execute(() -> {
+            // Удаляем все текущие связи
+            seriesDao.deleteAllSeriesCollectionRelationsForSeries(seriesId);
+
+            // Добавляем новые связи
+            if (newCollectionIds != null) {
+                for (Long collectionId : newCollectionIds) {
+                    SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
+                    seriesDao.insertCrossRef(crossRef);
+                }
+            }
+        });
+    }
+
+    public void replaceSeriesCollections(long seriesId, List<Long> newCollectionIds) {
+        executor.execute(() -> {
+            // 1. Удаляем ВСЕ текущие связи
+            seriesDao.deleteAllSeriesCollectionRelationsForSeries(seriesId);
+
+            // 2. Добавляем новые связи
+            if (newCollectionIds != null && !newCollectionIds.isEmpty()) {
+                for (Long collectionId : newCollectionIds) {
+                    SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
+                    seriesDao.insertCrossRef(crossRef);
+                }
+            }
+        });
+    }
 }

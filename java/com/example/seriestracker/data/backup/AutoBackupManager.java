@@ -30,6 +30,10 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import android.content.ContentResolver;
+import android.net.Uri;
+import android.util.Log;
+
 public class AutoBackupManager {
     private static final String TAG = "AutoBackupManager";
     private static final String PREFS_NAME = "auto_backup_prefs";
@@ -250,6 +254,103 @@ public class AutoBackupManager {
         }
     }
 
+    /**
+     * Восстановление из резервной копии, используя URI, предоставленный через системный диалог
+     */
+    public boolean restoreFromUri(Uri backupUri) {
+        try {
+            Log.d(TAG, "Starting restore from URI: " + backupUri.toString());
+
+            ContentResolver contentResolver = context.getContentResolver();
+
+            // Читаем файл через ContentResolver
+            StringBuilder jsonBuilder = new StringBuilder();
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(contentResolver.openInputStream(backupUri)))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    jsonBuilder.append(line);
+                }
+            }
+
+            String json = jsonBuilder.toString();
+            Log.d(TAG, "Backup JSON length: " + json.length());
+
+            // Парсим JSON
+            Type type = new TypeToken<BackupData>() {}.getType();
+            BackupData backupData = gson.fromJson(json, type);
+
+            if (backupData == null) {
+                Log.e(TAG, "Failed to parse backup file from URI");
+                return false;
+            }
+
+            Log.d(TAG, "Parsed backup from URI: " +
+                    (backupData.collections != null ? backupData.collections.size() : 0) + " collections, " +
+                    (backupData.series != null ? backupData.series.size() : 0) + " series");
+
+            // Очищаем текущие данные
+            repository.deleteAllData();
+
+            // Мапы для соответствия старых и новых ID
+            Map<Long, Long> collectionIdMap = new HashMap<>();
+            Map<Long, Long> seriesIdMap = new HashMap<>();
+
+            // Восстанавливаем коллекции
+            if (backupData.collections != null) {
+                for (Collection collection : backupData.collections) {
+                    long oldId = collection.getId();
+                    // Сбрасываем ID для новой вставки
+                    collection.setId(0);
+                    long newId = repository.insertCollectionSync(collection);
+                    if (newId > 0) {
+                        collectionIdMap.put(oldId, newId);
+                        Log.d(TAG, "Restored collection from URI: " + collection.getName() +
+                                " (old: " + oldId + ", new: " + newId + ")");
+                    }
+                }
+            }
+
+            // Восстанавливаем сериалы
+            if (backupData.series != null) {
+                for (Series series : backupData.series) {
+                    long oldId = series.getId();
+                    // Сбрасываем ID для новой вставки
+                    series.setId(0);
+                    long newId = repository.insertSeriesSync(series);
+                    if (newId > 0) {
+                        seriesIdMap.put(oldId, newId);
+                        Log.d(TAG, "Restored series from URI: " + series.getTitle() +
+                                " (old: " + oldId + ", new: " + newId + ")");
+                    }
+                }
+            }
+
+            // Восстанавливаем связи
+            if (backupData.relations != null) {
+                for (SeriesCollectionCrossRef relation : backupData.relations) {
+                    Long newSeriesId = seriesIdMap.get(relation.getSeriesId());
+                    Long newCollectionId = collectionIdMap.get(relation.getCollectionId());
+
+                    if (newSeriesId != null && newCollectionId != null) {
+                        SeriesCollectionCrossRef newRelation = new SeriesCollectionCrossRef(
+                                newSeriesId, newCollectionId);
+                        newRelation.setIsWatched(relation.getIsWatched());
+                        repository.insertCrossRefSync(newRelation);
+                        Log.d(TAG, "Restored relation from URI: series " + newSeriesId +
+                                " -> collection " + newCollectionId);
+                    }
+                }
+            }
+
+            Log.i(TAG, "Restore from URI completed successfully");
+            return true;
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error restoring from backup URI", e);
+            return false;
+        }
+    }
     /**
      * Получает директорию для резервных копий
      * По умолчанию: /storage/emulated/0/Download/SeriesTracker/backups для Android 10+

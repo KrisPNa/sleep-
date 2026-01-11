@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -46,6 +47,7 @@ public class BackupSettingsScreen extends Fragment {
     private AutoBackupManager backupManager;
 
     private ActivityResultLauncher<String[]> permissionLauncher;
+    private ActivityResultLauncher<Intent> filePickerLauncher;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -66,6 +68,19 @@ public class BackupSettingsScreen extends Fragment {
                         showPermissionDeniedDialog();
                     } else {
                         createBackupWithPermission();
+                    }
+                }
+        );
+
+
+        filePickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                        Uri selectedFileUri = result.getData().getData();
+                        if (selectedFileUri != null) {
+                            performRestoreFromUri(selectedFileUri);
+                        }
                     }
                 }
         );
@@ -200,21 +215,32 @@ public class BackupSettingsScreen extends Fragment {
     private void showRestoreOptions() {
         File[] backups = backupManager.getAvailableBackups();
 
-        if (backups == null || backups.length == 0) {
-            Toast.makeText(getContext(), "❌ Резервные копии не найдены", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        // Подготовим варианты восстановления
+        String[] options;
+        boolean hasLocalBackups = backups != null && backups.length > 0;
 
-        String[] backupNames = new String[backups.length];
-        for (int i = 0; i < backups.length; i++) {
-            backupNames[i] = backups[i].getName();
+        if (hasLocalBackups) {
+            options = new String[backups.length + 1]; // +1 для опции выбора файла
+            // Копируем названия локальных бэкапов
+            for (int i = 0; i < backups.length; i++) {
+                options[i] = backups[i].getName();
+            }
+            options[backups.length] = "Выбрать файл резервной копии...";
+        } else {
+            options = new String[]{"Выбрать файл резервной копии..."};
         }
 
         new AlertDialog.Builder(requireContext())
-                .setTitle("Выберите резервную копию")
-                .setItems(backupNames, (dialog, which) -> {
-                    File selectedBackup = backups[which];
-                    performRestore(selectedBackup);
+                .setTitle("Выберите способ восстановления")
+                .setItems(options, (dialog, which) -> {
+                    if (hasLocalBackups && which < backups.length) {
+                        // Выбрали локальный бэкап
+                        File selectedBackup = backups[which];
+                        performRestore(selectedBackup);
+                    } else {
+                        // Выбрали опцию выбора файла
+                        selectBackupFile();
+                    }
                 })
                 .show();
     }
@@ -228,6 +254,45 @@ public class BackupSettingsScreen extends Fragment {
 
                     Thread restoreThread = new Thread(() -> {
                         boolean success = backupManager.restoreFromFile(backupFile);
+
+                        requireActivity().runOnUiThread(() -> {
+                            hideProgress();
+                            if (success) {
+                                Toast.makeText(getContext(), "✅ Данные восстановлены", Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(getContext(), "❌ Ошибка восстановления", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    });
+
+                    restoreThread.start();
+                })
+                .setNegativeButton("Отмена", (dialog, which) -> dialog.dismiss())
+                .show();
+    }
+
+    private void selectBackupFile() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*"); // Любой тип файла
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+
+        // Проверяем, можно ли открыть системный диалог выбора файлов
+        if (intent.resolveActivity(requireContext().getPackageManager()) != null) {
+            filePickerLauncher.launch(Intent.createChooser(intent, "Выберите файл резервной копии"));
+        } else {
+            Toast.makeText(getContext(), "❌ Не найдено приложение для выбора файлов", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void performRestoreFromUri(Uri backupUri) {
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Восстановление данных")
+                .setMessage("Вы уверены, что хотите восстановить данные из выбранного файла? Это заменит все текущие данные.")
+                .setPositiveButton("Восстановить", (dialog, which) -> {
+                    showProgress();
+
+                    Thread restoreThread = new Thread(() -> {
+                        boolean success = backupManager.restoreFromUri(backupUri);
 
                         requireActivity().runOnUiThread(() -> {
                             hideProgress();
