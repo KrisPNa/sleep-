@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        app:boxStrokeColor="@color/primary_blue">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editCollectionNameEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:maxLines="1"
+            android:inputType="text"
+            android:hint="Введите новое название" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Выбор цвета -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Выберите цвет:"
+        android:textSize="14sp"
+        android:textColor="@color/text_dark"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Палитра цветов в диалоге -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/colorRecyclerViewDialog"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Текущий выбор цвета -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/selected_color_background"
+        android:padding="12dp"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Выбран:"
+            android:textSize="14sp"
+            android:textColor="@color/text_gray"
+            android:layout_marginEnd="12dp" />
+
+        <View
+            android:id="@+id/selectedColorViewDialog"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:background="@color/primary_blue"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/selectedColorNameDialog"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Синий"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark" />
+
+    </LinearLayout>
+
+</LinearLayout>
