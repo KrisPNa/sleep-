@@ -10,6 +10,8 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -24,6 +26,7 @@ import java.util.List;
 
 public class AllSeriesScreen extends Fragment {
 
+    private Fragment parentFragment;
     private SeriesViewModel viewModel;
     private RecyclerView seriesRecyclerView;
     private SeriesAdapter seriesAdapter;
@@ -34,6 +37,9 @@ public class AllSeriesScreen extends Fragment {
         // Required empty public constructor
     }
 
+    public void setParentFragment(Fragment parentFragment) {
+        this.parentFragment = parentFragment;
+    }
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -100,7 +106,32 @@ public class AllSeriesScreen extends Fragment {
 
         seriesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         seriesRecyclerView.setAdapter(seriesAdapter);
+
+        // ПЕРЕМЕЩЕННЫЙ КОД: Добавляем слушатель прокрутки для скрытия/показа кнопок
+        seriesRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            private int scrollThreshold = 20; // Минимальное расстояние прокрутки для срабатывания
+
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+
+                if (parentFragment instanceof MainScreen) {
+                    MainScreen mainScreen = (MainScreen) parentFragment;
+                    // Управляем поведением карточки с кнопками
+                    if (Math.abs(dy) > scrollThreshold) { // Проверяем, достаточно ли велика прокрутка
+                        if (dy > 0) {
+                            // Прокрутка вниз - скрываем кнопки
+                            mainScreen.hideButtons();
+                        } else if (dy < 0) {
+                            // Прокрутка вверх - показываем кнопки
+                            mainScreen.showButtons();
+                        }
+                    }
+                }
+            }
+        });
     }
+
 
     private void openEditSeriesScreen(Series series) {
         EditSeriesScreen editScreen = EditSeriesScreen.newInstance(series.getId());

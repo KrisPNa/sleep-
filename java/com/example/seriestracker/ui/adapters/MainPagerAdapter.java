@@ -13,8 +13,14 @@ public class MainPagerAdapter extends FragmentStateAdapter {
     public static final int COLLECTIONS_FRAGMENT_POSITION = 0;
     public static final int SERIES_FRAGMENT_POSITION = 1;
 
+    private Fragment mainFragment;
+
     public MainPagerAdapter(@NonNull FragmentActivity fragmentActivity) {
         super(fragmentActivity);
+    }
+    public MainPagerAdapter(@NonNull Fragment fragment) {
+        super(fragment);
+        this.mainFragment = fragment;
     }
 
     @NonNull
@@ -22,11 +28,23 @@ public class MainPagerAdapter extends FragmentStateAdapter {
     public Fragment createFragment(int position) {
         switch (position) {
             case COLLECTIONS_FRAGMENT_POSITION:
-                return new CollectionsListFragment();
+                CollectionsListFragment collectionsFragment = new CollectionsListFragment();
+                if (mainFragment != null) {
+                    collectionsFragment.setParentFragment(mainFragment);
+                }
+                return collectionsFragment;
             case SERIES_FRAGMENT_POSITION:
-                return new AllSeriesScreen();
+                AllSeriesScreen seriesFragment = new AllSeriesScreen();
+                if (mainFragment != null) {
+                    seriesFragment.setParentFragment(mainFragment);
+                }
+                return seriesFragment;
             default:
-                return new CollectionsListFragment();
+                CollectionsListFragment defaultFragment = new CollectionsListFragment();
+                if (mainFragment != null) {
+                    defaultFragment.setParentFragment(mainFragment);
+                }
+                return defaultFragment;
         }
     }
 

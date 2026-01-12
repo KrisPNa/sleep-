@@ -14,6 +14,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.viewpager2.widget.ViewPager2;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.seriestracker.R;
 import com.example.seriestracker.ui.adapters.MainPagerAdapter;
@@ -31,6 +32,7 @@ public class MainScreen extends Fragment {
     private TextView welcomeText;
     private ViewPager2 viewPager;
     private TabLayout tabLayout;
+    private View buttonsCardView;
 
     public MainScreen() {
         // Required empty public constructor
@@ -50,7 +52,34 @@ public class MainScreen extends Fragment {
 
         initViews(view);
         setupViewPagerAndTabs();
-        setupEventListeners();
+        setupEventListeners(); setupScrollBehavior();
+    }
+
+    private void setupScrollBehavior() {
+        // Инициализируем переменные для анимации
+    }
+
+    public void hideButtons() {
+        if (buttonsCardView != null) {
+            // Ждем, пока представление будет полностью измерено
+            buttonsCardView.post(() -> {
+                // Анимация скрытия кнопок вниз за пределы экрана
+                buttonsCardView.animate()
+                        .translationY(buttonsCardView.getHeight())
+                        .setDuration(200)
+                        .start();
+            });
+        }
+    }
+
+    public void showButtons() {
+        if (buttonsCardView != null) {
+            // Анимация показа кнопок
+            buttonsCardView.animate()
+                    .translationY(0)
+                    .setDuration(200)
+                    .start();
+        }
     }
 
     private void initViews(View view) {
@@ -61,11 +90,12 @@ public class MainScreen extends Fragment {
         welcomeText = view.findViewById(R.id.welcomeText);
         viewPager = view.findViewById(R.id.viewPager);
         tabLayout = view.findViewById(R.id.tabLayout);
+        buttonsCardView = view.findViewById(R.id.buttonsCardView);
     }
 
     private void setupViewPagerAndTabs() {
         // Initialize the adapter
-        MainPagerAdapter adapter = new MainPagerAdapter(requireActivity());
+        MainPagerAdapter adapter = new MainPagerAdapter(this);
         viewPager.setAdapter(adapter);
 
         // Connect TabLayout with ViewPager2
