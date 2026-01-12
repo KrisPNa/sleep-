@@ -49,7 +49,7 @@
     <!-- Дополнительные полезные цвета -->
     <color name="gray_light">#FFE0E0E0</color>
     <color name="gray_dark">#FF616161</color>
-    <color name="transparent_black">#80000000</color> <!-- ИЗМЕНЕНО на 50% прозрачность -->
+    <color name="transparent_black">#70000000</color> <!-- ИЗМЕНЕНО на 50% прозрачность -->
     <color name="transparent_white">#33FFFFFF</color>
 
     <!-- Цвета для элементов интерфейса -->

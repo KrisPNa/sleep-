@@ -16,7 +16,7 @@
         android:orientation="horizontal"
 
         android:gravity="center_vertical"
-        android:layout_marginBottom="16dp">
+        android:layout_marginBottom="14dp">
 
         <TextView
             android:id="@+id/welcomeText"
@@ -50,7 +50,7 @@
         app:cardCornerRadius="12dp"
         app:cardElevation="4dp"
         app:cardBackgroundColor="@color/background_white"
-        android:layout_marginBottom="32dp">
+        android:layout_marginBottom="8dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -142,7 +142,6 @@
         android:minHeight="10dp"
         android:backgroundTint="@color/transparent_black"
         android:textColor="@color/white"
-        style="@style/Widget.MaterialComponents.Button"
         android:drawableStart="@drawable/ic_backup"
         android:drawablePadding="1dp"
         android:drawableTint="@color/white" />
