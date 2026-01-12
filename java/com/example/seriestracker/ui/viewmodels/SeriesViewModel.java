@@ -122,6 +122,9 @@ public class SeriesViewModel extends AndroidViewModel {
         repository.updateSeriesFavoriteStatus(seriesId, isFavorite);
     }
 
+    public void addMultipleSeriesToCollection(List<Long> seriesIds, long collectionId) {
+        repository.addMultipleSeriesToCollection(seriesIds, collectionId);
+    }
     public void updateSeriesStatus(long seriesId, String status) {
         repository.updateSeriesStatus(seriesId, status);
     }

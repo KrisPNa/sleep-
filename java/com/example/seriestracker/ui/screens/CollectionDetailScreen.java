@@ -1,10 +1,13 @@
 package com.example.seriestracker.ui.screens;
 
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewGroup.LayoutParams;
+import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -19,10 +22,14 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.seriestracker.R;
 import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.data.entities.Series;
+import com.example.seriestracker.ui.adapters.MultiSelectSeriesAdapter;
 import com.example.seriestracker.ui.adapters.SeriesAdapter;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class CollectionDetailScreen extends Fragment {
 
@@ -71,6 +78,9 @@ public class CollectionDetailScreen extends Fragment {
         favoriteButton = view.findViewById(R.id.favoriteButton);
         menuButton = view.findViewById(R.id.menuButton);
 
+        // Add series button
+        Button addSeriesButton = view.findViewById(R.id.addSeriesButton);
+
         // Обработчик кнопки назад
         if (backButton != null) {
             backButton.setOnClickListener(v -> {
@@ -86,6 +96,10 @@ public class CollectionDetailScreen extends Fragment {
         // Обработчик кнопки меню
         if (menuButton != null) {
             menuButton.setOnClickListener(v -> showMenu());
+        }
+        // Обработчик кнопки добавления сериалов
+        if (addSeriesButton != null) {
+            addSeriesButton.setOnClickListener(v -> showSelectSeriesDialog());
         }
 
         // Настройка RecyclerView
@@ -286,6 +300,75 @@ public class CollectionDetailScreen extends Fragment {
                 .show();
     }
 
+    private void showSelectSeriesDialog() {
+        android.app.Dialog dialog = new android.app.Dialog(requireContext());
+        dialog.setContentView(R.layout.dialog_select_series);
+        dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+
+        RecyclerView selectSeriesRecyclerView = dialog.findViewById(R.id.selectSeriesRecyclerView);
+        Button cancelButton = dialog.findViewById(R.id.cancelButton);
+        Button addSelectedButton = dialog.findViewById(R.id.addSelectedButton);
+
+        // Get all series that are not already in this collection
+        viewModel.getAllSeries().observe(this, allSeries -> {
+            if (allSeries != null) {
+                // Get series that are already in this collection
+                viewModel.getSeriesInCollection(collectionId).observe(this, seriesInCollection -> {
+                    if (seriesInCollection != null) {
+                        // Find series that are NOT in this collection
+                        Set<Long> seriesInCollectionIds = new HashSet<>();
+                        for (Series series : seriesInCollection) {
+                            seriesInCollectionIds.add(series.getId());
+                        }
+
+                        List<Series> availableSeries = new ArrayList<>();
+                        for (Series series : allSeries) {
+                            if (!seriesInCollectionIds.contains(series.getId())) {
+                                availableSeries.add(series);
+                            }
+                        }
+
+                        // Initialize adapter with available series
+                        Set<Long> initiallySelected = new HashSet<>(); // Initially none selected
+                        MultiSelectSeriesAdapter adapter = new MultiSelectSeriesAdapter(availableSeries, initiallySelected);
+                        selectSeriesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+                        selectSeriesRecyclerView.setAdapter(adapter);
+
+                        // Handle selection changes
+                        adapter.setOnSelectionChangeListener(() -> {
+                            // Update button state based on selection
+                            Set<Long> selectedIds = adapter.getSelectedSeriesIds();
+                            addSelectedButton.setEnabled(!selectedIds.isEmpty());
+                        });
+
+                        // Set up buttons
+                        cancelButton.setOnClickListener(v -> dialog.dismiss());
+
+                        addSelectedButton.setOnClickListener(v -> {
+                            Set<Long> selectedIds = adapter.getSelectedSeriesIds();
+                            if (!selectedIds.isEmpty()) {
+                                List<Long> selectedList = new ArrayList<>(selectedIds);
+                                viewModel.addMultipleSeriesToCollection(selectedList, collectionId);
+
+                                Toast.makeText(getContext(),
+                                        "Добавлено " + selectedList.size() + " сериалов",
+                                        Toast.LENGTH_SHORT).show();
+
+                                dialog.dismiss();
+
+                                // Refresh the series list in the current collection
+                                loadData();
+                            }
+                        });
+
+                        addSelectedButton.setEnabled(false); // Initially disabled
+                    }
+                });
+            }
+        });
+
+        dialog.show();
+    }
     private void openEditSeriesScreen(Series series) {
         EditSeriesScreen editScreen = EditSeriesScreen.newInstance(series.getId());
         requireActivity().getSupportFragmentManager().beginTransaction()

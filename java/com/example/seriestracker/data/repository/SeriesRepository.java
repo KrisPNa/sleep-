@@ -385,6 +385,19 @@ public class SeriesRepository {
     }
 
 
+    public void addMultipleSeriesToCollection(List<Long> seriesIds, long collectionId) {
+        executor.execute(() -> {
+            for (Long seriesId : seriesIds) {
+                // Проверяем, есть ли уже связь
+                int count = seriesDao.isSeriesInCollection(seriesId, collectionId);
+                if (count == 0) {
+                    SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
+                    seriesDao.insertCrossRef(crossRef);
+                }
+            }
+        });
+    }
+
     public LiveData<Boolean> doesCollectionExistExcludeId(String collectionName, long collectionId) {
         return seriesDao.doesCollectionExistExcludeId(collectionName, collectionId);
     }
