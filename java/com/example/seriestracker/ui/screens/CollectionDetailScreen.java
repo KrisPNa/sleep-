@@ -35,6 +35,8 @@ public class CollectionDetailScreen extends Fragment {
     private SeriesAdapter seriesAdapter;
     private ImageButton backButton;
     private View colorIndicator;
+    private ImageButton favoriteButton;
+    private ImageButton menuButton;
 
     public CollectionDetailScreen() {
         // Required empty public constructor
@@ -66,12 +68,24 @@ public class CollectionDetailScreen extends Fragment {
         seriesRecyclerView = view.findViewById(R.id.seriesRecyclerView);
         backButton = view.findViewById(R.id.backButton);
         colorIndicator = view.findViewById(R.id.colorIndicator);
+        favoriteButton = view.findViewById(R.id.favoriteButton);
+        menuButton = view.findViewById(R.id.menuButton);
 
         // Обработчик кнопки назад
         if (backButton != null) {
             backButton.setOnClickListener(v -> {
                 requireActivity().getSupportFragmentManager().popBackStack();
             });
+        }
+
+        // Обработчик кнопки избранного
+        if (favoriteButton != null) {
+            favoriteButton.setOnClickListener(v -> toggleFavorite());
+        }
+
+        // Обработчик кнопки меню
+        if (menuButton != null) {
+            menuButton.setOnClickListener(v -> showMenu());
         }
 
         // Настройка RecyclerView
@@ -102,7 +116,7 @@ public class CollectionDetailScreen extends Fragment {
             public void onFavoriteToggle(Series series, boolean isFavorite) {
                 viewModel.toggleFavoriteStatus(series.getId(), isFavorite);
                 Toast.makeText(getContext(),
-                        isFavorite ? "Добавлено в избранное" : "Убрано из избранного",
+                        isFavorite ? "Добавлено в избранное" : "Убрано из избранное",
                         Toast.LENGTH_SHORT).show();
             }
         });
@@ -158,6 +172,9 @@ public class CollectionDetailScreen extends Fragment {
                             // Если цвет не установлен, используем цвет по умолчанию
                             setDefaultColors();
                         }
+
+                        // Обновляем состояние избранного
+                        updateFavoriteIcon(collection.isFavorite());
                         break;
                     }
                 }
@@ -169,6 +186,104 @@ public class CollectionDetailScreen extends Fragment {
         colorIndicator.setBackgroundColor(getResources().getColor(R.color.primary_blue));
         colorIndicator.setVisibility(View.VISIBLE);
         collectionNameTextView.setTextColor(getResources().getColor(R.color.text_dark));
+    }
+
+    private void toggleFavorite() {
+        // Получаем коллекцию и переключаем статус избранного
+        viewModel.getAllCollections().observe(getViewLifecycleOwner(), collections -> {
+            if (collections != null) {
+                for (Collection collection : collections) {
+                    if (collection.getId() == collectionId) {
+                        boolean newFavoriteStatus = !collection.isFavorite();
+                        collection.setFavorite(newFavoriteStatus);
+                        viewModel.updateCollection(collection);
+
+                        // Обновляем иконку
+                        updateFavoriteIcon(newFavoriteStatus);
+
+                        // Показываем тост
+                        Toast.makeText(getContext(),
+                                newFavoriteStatus ? "Добавлено в избранное" : "Убрано из избранного",
+                                Toast.LENGTH_SHORT).show();
+
+                        // Прерываем наблюдение после обновления
+                        viewModel.getAllCollections().removeObservers(getViewLifecycleOwner());
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    private void updateFavoriteIcon(boolean isFavorite) {
+        if (favoriteButton != null) {
+            if (isFavorite) {
+                favoriteButton.setImageResource(R.drawable.ic_baseline_star_24_filled);
+            } else {
+                favoriteButton.setImageResource(R.drawable.ic_baseline_star_border_24);
+            }
+        }
+    }
+
+    private void showMenu() {
+        // Создаем PopupMenu для отображения опций
+        View menuView = menuButton;
+        if (menuView != null) {
+            androidx.appcompat.widget.PopupMenu popup = new androidx.appcompat.widget.PopupMenu(
+                    requireContext(), menuView);
+
+            // Временное меню (пока не создан файл collection_menu.xml)
+            popup.getMenu().add(0, 1, 0, "Редактировать");
+            popup.getMenu().add(0, 2, 0, "Удалить");
+
+            // Альтернатива: создайте простой XML файл
+            // popup.getMenuInflater().inflate(R.menu.collection_menu, popup.getMenu());
+
+            popup.setOnMenuItemClickListener(item -> {
+                int itemId = item.getItemId();
+                if (itemId == 1) { // Редактировать
+                    editCollection();
+                    return true;
+                } else if (itemId == 2) { // Удалить
+                    deleteCollection();
+                    return true;
+                }
+                return false;
+            });
+
+            popup.show();
+        }
+    }
+
+    private void editCollection() {
+        // Navigate to the edit collection screen
+        CreateCollectionScreen editCollectionScreen = new CreateCollectionScreen();
+        Bundle bundle = new Bundle();
+        bundle.putLong("collectionId", collectionId);
+        bundle.putBoolean("isEditing", true);
+        editCollectionScreen.setArguments(bundle);
+
+        requireActivity().getSupportFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, editCollectionScreen)
+                .addToBackStack(null)
+                .commit();
+    }
+
+    private void deleteCollection() {
+        // Подтверждение удаления
+        new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("Удалить коллекцию")
+                .setMessage("Вы уверены, что хотите удалить эту коллекцию? Все сериалы останутся в приложении.")
+                .setPositiveButton("Удалить", (dialog, which) -> {
+                    // Удаляем коллекцию
+                    viewModel.deleteCollection(collectionId); // Используйте существующий метод
+                    Toast.makeText(getContext(), "Коллекция удалена", Toast.LENGTH_SHORT).show();
+
+                    // Возвращаемся назад
+                    requireActivity().getSupportFragmentManager().popBackStack();
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
     }
 
     private void openEditSeriesScreen(Series series) {

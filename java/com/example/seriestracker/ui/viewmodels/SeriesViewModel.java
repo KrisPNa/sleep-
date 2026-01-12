@@ -109,7 +109,10 @@ public class SeriesViewModel extends AndroidViewModel {
     public void deleteSeries(long seriesId) {
         repository.deleteSeries(seriesId);
     }
-
+    // Добавьте этот метод для удаления коллекции по ID
+    public void deleteCollectionById(long collectionId) {
+        repository.deleteCollection(collectionId);
+    }
     // === Статусы ===
     public void toggleWatchedStatus(long seriesId, boolean isWatched) {
         repository.updateSeriesWatchedStatus(seriesId, isWatched);
