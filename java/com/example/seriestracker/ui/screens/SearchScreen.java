@@ -2,6 +2,8 @@ package com.example.seriestracker.ui.screens;
 
 import android.os.Bundle;
 import android.text.Editable;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -30,6 +32,8 @@ import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class SearchScreen extends Fragment {
 
@@ -60,6 +64,18 @@ public class SearchScreen extends Fragment {
 
     // Поисковый запрос
     private String currentQuery = "";
+
+
+    // Для дебаунса поиска
+    private Handler searchHandler = new Handler(Looper.getMainLooper());
+    private Runnable searchRunnable;
+    private static final int SEARCH_DELAY_MS = 300; // 300ms задержка
+
+    // Пул потоков для выполнения поиска
+    private ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    // Для отслеживания последнего запроса во время поиска
+    private volatile String lastProcessedQuery = "";
 
     public SearchScreen() {
         // Required empty public constructor
@@ -156,8 +172,18 @@ public class SearchScreen extends Fragment {
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 // Показываем/скрываем кнопку очистки
                 clearSearchButton.setVisibility(s.length() > 0 ? View.VISIBLE : View.GONE);
+
+
+                // Отменяем предыдущий запланированный поиск
+                if (searchRunnable != null) {
+                    searchHandler.removeCallbacks(searchRunnable);
+                }
+
                 currentQuery = s.toString();
-                performSearch();
+
+                // Запланировать новый поиск с задержкой
+                searchRunnable = () -> performSearch();
+                searchHandler.postDelayed(searchRunnable, SEARCH_DELAY_MS);
             }
 
             @Override
@@ -242,42 +268,70 @@ public class SearchScreen extends Fragment {
     private void performSearch() {
         String query = currentQuery.toLowerCase().trim();
 
-        List<Series> filteredSeries = new ArrayList<>();
-        List<Collection> filteredCollections = new ArrayList<>();
+        // Выполняем поиск в фоновом потоке
+        executor.execute(() -> {
+            // Сохраняем текущий запрос как последний обрабатываемый
+            lastProcessedQuery = query;
 
-        // Если запрос пустой, показываем все согласно фильтру
-        if (query.isEmpty()) {
-            if (currentFilter == 0 || currentFilter == 2) {
-                // Показываем все сериалы
-                filteredSeries.addAll(allSeries);
-            }
-            if (currentFilter == 0 || currentFilter == 1) {
-                // Показываем все коллекции
-                filteredCollections.addAll(allCollections);
-            }
-        } else {
-            // Выполняем поиск по запросу
-            if (currentFilter == 0 || currentFilter == 2) {
-                // Ищем в сериалах
-                for (Series series : allSeries) {
-                    if (matchesSeries(series, query)) {
-                        filteredSeries.add(series);
+            List<Series> filteredSeries = new ArrayList<>();
+            List<Collection> filteredCollections = new ArrayList<>();
+
+            // Если запрос пустой, показываем все согласно фильтру
+            if (query.isEmpty()) {
+                if (currentFilter == 0 || currentFilter == 2) {
+                    // Показываем все сериалы
+                    filteredSeries.addAll(allSeries);
+                }
+                if (currentFilter == 0 || currentFilter == 1) {
+                    // Показываем все коллекции
+                    filteredCollections.addAll(allCollections);
+                }
+            } else {
+                // Выполняем поиск по запросу
+                if (currentFilter == 0 || currentFilter == 2) {
+                    // Ищем в сериалах
+                    for (Series series : allSeries) {
+                        if (!lastProcessedQuery.equals(currentQuery)) {
+                            // Запрос изменился во время поиска, прерываем
+                            return;
+                        }
+
+                        if (matchesSeries(series, query)) {
+                            filteredSeries.add(series);
+                        }
+                    }
+                }
+
+                if (currentFilter == 0 || currentFilter == 1) {
+                    // Ищем в коллекциях
+                    for (Collection collection : allCollections) {
+                        if (!lastProcessedQuery.equals(currentQuery)) {
+                            // Запрос изменился во время поиска, прерываем
+                            return;
+                        }
+
+                        if (matchesCollection(collection, query)) {
+                            filteredCollections.add(collection);
+                        }
                     }
                 }
             }
-
-            if (currentFilter == 0 || currentFilter == 1) {
-                // Ищем в коллекциях
-                for (Collection collection : allCollections) {
-                    if (matchesCollection(collection, query)) {
-                        filteredCollections.add(collection);
-                    }
-                }
+            // Проверяем, изменился ли запрос во время поиска
+            if (!lastProcessedQuery.equals(currentQuery)) {
+                // Запрос изменился, не обновляем UI
+                return;
             }
-        }
 
-        // Обновляем UI
-        updateUI(filteredSeries, filteredCollections, query);
+            // Обновляем UI в основном потоке
+            final List<Series> finalFilteredSeries = filteredSeries;
+            final List<Collection> finalFilteredCollections = filteredCollections;
+
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    updateUI(finalFilteredSeries, finalFilteredCollections, query);
+                });
+            }
+        });
     }
 
     private boolean matchesSeries(Series series, String query) {
@@ -350,5 +404,19 @@ public class SearchScreen extends Fragment {
                 .replace(R.id.fragment_container, detailScreen)
                 .addToBackStack(null)
                 .commit();
+    }
+
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        // Отменяем запланированные задачи поиска
+        if (searchRunnable != null) {
+            searchHandler.removeCallbacks(searchRunnable);
+        }
+        // Закрываем пул потоков
+        if (executor != null) {
+            executor.shutdown();
+        }
     }
 }
