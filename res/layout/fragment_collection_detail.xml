@@ -105,15 +105,6 @@
 
     </LinearLayout>
     <!-- Кнопка добавления сериалов -->
-    <Button
-        android:id="@+id/addSeriesButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Добавить сериал"
-        android:layout_marginBottom="12dp"
-        style="?android:attr/buttonBarButtonStyle"
-        android:backgroundTint="@color/primary_blue"
-        android:textColor="@color/white" />
 
     <!-- Список сериалов -->
     <androidx.recyclerview.widget.RecyclerView
