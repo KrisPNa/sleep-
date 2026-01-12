@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp"
-    android:paddingBottom="10dp"
+    android:paddingBottom="100dp"
     tools:context=".ui.screens.MainScreen">
 
     <!-- Заголовок с иконкой поиска -->
@@ -56,13 +56,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="10dp">
+            android:padding="20dp">
 
             <!-- Первая строка кнопок -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                >
 
                 <Button
                     android:id="@+id/createCollectionButton"
@@ -98,39 +99,97 @@
 
             </LinearLayout>
 
+            <!-- Вторая строка кнопок -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
 
+
+
+                <Button
+                    android:id="@+id/allCollection"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="154dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginEnd="12dp"
+                    android:backgroundTint="@color/primary_blue_light"
+                    android:drawableStart="@drawable/ic_baseline_settings_24"
+                    android:drawablePadding="8dp"
+                    android:minHeight="48dp"
+                    android:text="Коллекции"
+                    android:textColor="@color/white"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/allSeriesButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="154dp"
+                    android:layout_height="wrap_content"
+
+                    android:backgroundTint="@color/primary_blue_light"
+                    android:drawableStart="@drawable/ic_baseline_list_24"
+                    android:drawablePadding="8dp"
+                    android:minHeight="48dp"
+                    android:text="Сериалы"
+                    android:textColor="@color/white"
+                    android:textSize="13sp" />
+            </LinearLayout>
         </LinearLayout>
 
     </androidx.cardview.widget.CardView>
 
-    <!-- Tabs for switching between collections and series -->
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/tabLayout"
+    <!-- Раздел коллекций -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="30dp"
-        android:layout_marginBottom="1dp"
-        app:tabIndicatorColor="@color/primary_blue"
-        app:tabSelectedTextColor="@color/primary_blue"
-        app:tabTextColor="@color/text_gray">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
 
-        <com.google.android.material.tabs.TabItem
+        <TextView
+            android:id="@+id/collectionsTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Мои коллекции"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark" />
+
+        <TextView
+            android:id="@+id/collectionsCount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Коллекции" />
+            android:text="0"
+            android:textSize="16sp"
+            android:textColor="@color/white"
+            android:background="@drawable/counter_background"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp" />
 
-        <com.google.android.material.tabs.TabItem
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Сериалы" />
+    </LinearLayout>
 
-    </com.google.android.material.tabs.TabLayout>
+    <!-- Если коллекций нет -->
+    <TextView
+        android:id="@+id/noCollectionsText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Коллекций пока нет. Создайте первую!"
+        android:textSize="16sp"
+        android:textColor="@color/text_gray"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone" />
 
-    <!-- ViewPager2 for swipe functionality -->
-    <androidx.viewpager2.widget.ViewPager2
-        android:id="@+id/viewPager"
+    <!-- Список коллекций -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/collectionsRecyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="24dp" />
 
     <Button
         android:id="@+id/backupSettingsButton"
@@ -144,7 +203,7 @@
         android:textColor="@color/white"
         style="@style/Widget.MaterialComponents.Button"
         android:drawableStart="@drawable/ic_backup"
-        android:drawablePadding="1dp"
+        android:drawablePadding="8dp"
         android:drawableTint="@color/white" />
 
 </LinearLayout>

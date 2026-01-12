@@ -1,16 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp"
-    android:paddingBottom="80dp"
-    tools:context=".ui.screens.AllSeriesScreen">
+    android:paddingBottom="24dp">
 
-
-
-    <!-- Строка "Все сериалы" с бейджем -->
+    <!-- Раздел коллекций -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -19,20 +15,21 @@
         android:layout_marginBottom="12dp">
 
         <TextView
+            android:id="@+id/collectionsTitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Все сериалы"
-            android:textSize="18sp"
+            android:text="Мои коллекции"
+            android:textSize="20sp"
             android:textStyle="bold"
             android:textColor="@color/text_dark" />
 
         <TextView
-            android:id="@+id/seriesCountBadge"
+            android:id="@+id/collectionsCount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="0"
-            android:textSize="14sp"
+            android:textSize="16sp"
             android:textColor="@color/white"
             android:background="@drawable/counter_background"
             android:paddingHorizontal="12dp"
@@ -40,13 +37,25 @@
 
     </LinearLayout>
 
-    <!-- Список сериалов -->
+    <!-- Если коллекций нет -->
+    <TextView
+        android:id="@+id/noCollectionsText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Коллекций пока нет. Создайте первую!"
+        android:textSize="16sp"
+        android:textColor="@color/text_gray"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone" />
+
+    <!-- Список коллекций -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/allSeriesRecyclerView"
+        android:id="@+id/collectionsRecyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:clipToPadding="false"
-        android:paddingBottom="24dp"/>
+        android:paddingBottom="24dp" />
 
 </LinearLayout>
