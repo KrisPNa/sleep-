@@ -89,6 +89,10 @@ public class CustomVideoView extends FrameLayout {
             return;
         }
         Log.d("CustomVideoView", "Setting video URI: " + uri.toString());
+
+        // Сбрасываем обложку перед началом воспроизведения
+        thumbnailView.setVisibility(View.GONE);
+        videoView.setVisibility(View.VISIBLE);
         videoView.setVideoURI(uri);
         // Автоматически начинаем подготовку видео
         videoView.requestFocus();
@@ -230,29 +234,40 @@ public class CustomVideoView extends FrameLayout {
 
     // Метод для установки превью из видео файла (если нужно)
     public void setVideoThumbnail(String videoUri) {
-        try {
-            Log.d("CustomVideoView", "Setting video thumbnail from URI: " + videoUri);
-            // Используем MediaMetadataRetriever для получения превью
-            android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
-            retriever.setDataSource(videoUri, new HashMap<String, String>());
+        // Запускаем в фоновом потоке, чтобы не блокировать UI
+        new Thread(() -> {
+            try {
+                Log.d("CustomVideoView", "Setting video thumbnail from URI: " + videoUri);
 
-            // Получаем превью на 1 секунде
-            Bitmap bitmap = retriever.getFrameAtTime(1000000); // 1 секунда в микросекундах
+                // Используем MediaMetadataRetriever для получения превью
+                android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
+                retriever.setDataSource(videoUri, new HashMap<String, String>());
 
-            if (bitmap != null) {
-                thumbnailView.setImageBitmap(bitmap);
-                Log.d("CustomVideoView", "Video thumbnail loaded successfully");
-            } else {
-                // Если не удалось получить превью, показываем иконку видео
-                thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
-                Log.d("CustomVideoView", "Video thumbnail not available, using default icon");
+                // Получаем превью на 1 секунде
+                Bitmap bitmap = retriever.getFrameAtTime(1000000); // 1 секунда в микросекундах
+
+                if (bitmap != null) {
+                    // Возвращаемся в UI поток для обновления ImageView
+                    post(() -> {
+                        thumbnailView.setImageBitmap(bitmap);
+                        Log.d("CustomVideoView", "Video thumbnail loaded successfully");
+                    });
+                } else {
+                    // Если не удалось получить превью, показываем иконку видео
+                    post(() -> {
+                        thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
+                        Log.d("CustomVideoView", "Video thumbnail not available, using default icon");
+                    });
+                }
+
+                retriever.release();
+            } catch (Exception e) {
+                Log.e("CustomVideoView", "Error loading video thumbnail: " + e.getMessage(), e);
+                post(() -> {
+                    thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
+                });
             }
-
-            retriever.release();
-        } catch (Exception e) {
-            Log.e("CustomVideoView", "Error loading video thumbnail: " + e.getMessage(), e);
-            thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
-        }
+        }).start();
     }
 
     // Альтернативный метод с использованием URI

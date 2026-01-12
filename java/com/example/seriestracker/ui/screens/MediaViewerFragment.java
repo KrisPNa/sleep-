@@ -243,17 +243,14 @@ public class MediaViewerFragment extends Fragment {
                         customVideoView.stopPlayback();
                     }
 
-                    // Сбрасываем состояние
-                    customVideoView.showThumbnail();
-
-                    // Устанавливаем URI
-                    customVideoView.setVideoURI(uri);
+                    // Показываем прогресс
+                    customVideoView.setProgressBarVisible(true);
 
                     // Устанавливаем обложку
                     customVideoView.setVideoThumbnail(videoUri);
 
-                    // Показываем прогресс
-                    customVideoView.setProgressBarVisible(true);
+                    // Устанавливаем URI
+                    customVideoView.setVideoURI(uri);
 
                 } catch (Exception e) {
                     Log.e("MediaViewer", "Error setting video URI: " + e.getMessage(), e);
