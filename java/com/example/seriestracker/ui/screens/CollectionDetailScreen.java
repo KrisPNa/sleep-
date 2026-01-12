@@ -78,8 +78,6 @@ public class CollectionDetailScreen extends Fragment {
         favoriteButton = view.findViewById(R.id.favoriteButton);
         menuButton = view.findViewById(R.id.menuButton);
 
-        // Add series button
-        Button addSeriesButton = view.findViewById(R.id.addSeriesButton);
 
         // Обработчик кнопки назад
         if (backButton != null) {
@@ -97,10 +95,7 @@ public class CollectionDetailScreen extends Fragment {
         if (menuButton != null) {
             menuButton.setOnClickListener(v -> showMenu());
         }
-        // Обработчик кнопки добавления сериалов
-        if (addSeriesButton != null) {
-            addSeriesButton.setOnClickListener(v -> showSelectSeriesDialog());
-        }
+
 
         // Настройка RecyclerView
         setupRecyclerView();
@@ -246,19 +241,18 @@ public class CollectionDetailScreen extends Fragment {
             androidx.appcompat.widget.PopupMenu popup = new androidx.appcompat.widget.PopupMenu(
                     requireContext(), menuView);
 
-            // Временное меню (пока не создан файл collection_menu.xml)
-            popup.getMenu().add(0, 1, 0, "Редактировать");
-            popup.getMenu().add(0, 2, 0, "Удалить");
-
-            // Альтернатива: создайте простой XML файл
-            // popup.getMenuInflater().inflate(R.menu.collection_menu, popup.getMenu());
+            // Используем XML файл меню
+            popup.getMenuInflater().inflate(R.menu.collection_actions_menu, popup.getMenu());
 
             popup.setOnMenuItemClickListener(item -> {
                 int itemId = item.getItemId();
-                if (itemId == 1) { // Редактировать
+                if (itemId == R.id.action_add_series) { // Добавить сериал
+                    showSelectSeriesDialog();
+                    return true;
+                } else if (itemId == R.id.action_edit) { // Редактировать
                     editCollection();
                     return true;
-                } else if (itemId == 2) { // Удалить
+                } else if (itemId == R.id.action_delete) { // Удалить
                     deleteCollection();
                     return true;
                 }
