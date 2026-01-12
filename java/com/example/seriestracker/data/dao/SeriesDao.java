@@ -161,6 +161,10 @@ public interface SeriesDao {
     @Query("DELETE FROM series_collection_cross_ref WHERE seriesId = :seriesId")
     void deleteAllSeriesCollectionRelationsForSeries(long seriesId);
 
+
+    // Проверка существования коллекции с исключением текущего ID (для редактирования)
+    @Query("SELECT COUNT(*) > 0 FROM collections WHERE LOWER(name) = LOWER(:collectionName) AND id != :collectionId")
+    LiveData<Boolean> doesCollectionExistExcludeId(String collectionName, long collectionId);
 // В SeriesDao.java добавьте:
 
 

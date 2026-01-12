@@ -96,6 +96,12 @@ public class SeriesViewModel extends AndroidViewModel {
         repository.insertSeriesWithCollections(series, collectionIds);
     }
 
+
+
+    public LiveData<Boolean> doesCollectionExistExcludeId(String collectionName, long collectionId) {
+        return repository.doesCollectionExistExcludeId(collectionName, collectionId);
+    }
+
     public void updateSeries(Series series) {
         repository.updateSeries(series);
     }

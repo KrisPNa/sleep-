@@ -14,6 +14,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -25,6 +26,7 @@ import com.example.seriestracker.ui.adapters.CollectionsManageAdapter;
 import com.example.seriestracker.ui.adapters.ColorAdapter;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class ManageCollectionsScreen extends Fragment {
@@ -34,6 +36,7 @@ public class ManageCollectionsScreen extends Fragment {
     private CollectionsManageAdapter adapter;
     private TextView collectionsCountTextView;
     private TextView noCollectionsTextView;
+    private boolean isCheckingExistence = false;
 
     // Переменная для хранения выбранного цвета в диалоге
     private String selectedColor;
@@ -138,31 +141,46 @@ public class ManageCollectionsScreen extends Fragment {
 
         builder.setView(dialogView);
 
+        // Затем в методе showEditDialog:
         builder.setPositiveButton("Сохранить", (dialog, which) -> {
             String newName = editText.getText().toString().trim();
-            if (!newName.isEmpty() && !newName.equals(collection.getName())) {
-                // Проверяем, не существует ли уже коллекция с таким названием
-                viewModel.doesCollectionExist(newName).observe(getViewLifecycleOwner(), exists -> {
-                    if (exists != null && exists) {
-                        // Коллекция уже существует
-                        Toast.makeText(getContext(),
-                                "Коллекция \"" + newName + "\" уже существует",
-                                Toast.LENGTH_LONG).show();
-                    } else {
-                        // Обновляем коллекцию с новым цветом
-                        List<String> newColors = java.util.Arrays.asList(selectedColor);
-                        collection.setColors(newColors);
-                        collection.setName(newName);
-                        viewModel.updateCollection(collection);
-                        Toast.makeText(getContext(), "Коллекция обновлена", Toast.LENGTH_SHORT).show();
-                    }
-                });
-            } else if (newName.equals(collection.getName())) {
-                // Только цвет мог измениться
-                List<String> newColors = java.util.Arrays.asList(selectedColor);
-                collection.setColors(newColors);
-                viewModel.updateCollection(collection);
-                Toast.makeText(getContext(), "Цвет коллекции обновлен", Toast.LENGTH_SHORT).show();
+            String finalSelectedColor = selectedColor;
+
+            if (!newName.isEmpty()) {
+                if (newName.equals(collection.getName())) {
+                    // Если название не изменилось, только обновляем цвет
+                    List<String> newColors = Arrays.asList(finalSelectedColor);
+                    collection.setColors(newColors);
+                    viewModel.updateCollection(collection);
+                    Toast.makeText(getContext(), "Цвет коллекции обновлен", Toast.LENGTH_SHORT).show();
+                } else {
+                    // Используем одноразового наблюдателя
+                    isCheckingExistence = true;
+                    viewModel.doesCollectionExistExcludeId(newName, collection.getId())
+                            .observe(getViewLifecycleOwner(), new Observer<Boolean>() {
+                                @Override
+                                public void onChanged(Boolean exists) {
+                                    if (!isCheckingExistence) return;
+
+                                    if (exists != null && exists) {
+                                        // Коллекция уже существует
+                                        Toast.makeText(getContext(),
+                                                "Коллекция \"" + newName + "\" уже существует",
+                                                Toast.LENGTH_LONG).show();
+                                    } else {
+                                        // Обновляем коллекцию
+                                        List<String> newColors = Arrays.asList(finalSelectedColor);
+                                        collection.setColors(newColors);
+                                        collection.setName(newName);
+                                        viewModel.updateCollection(collection);
+                                        Toast.makeText(getContext(), "Коллекция обновлена", Toast.LENGTH_SHORT).show();
+                                    }
+
+                                    // Удаляем наблюдателя после использования
+                                    isCheckingExistence = false;
+                                }
+                            });
+                }
             }
         });
 

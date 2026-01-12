@@ -383,4 +383,9 @@ public class SeriesRepository {
             return null;
         }
     }
+
+
+    public LiveData<Boolean> doesCollectionExistExcludeId(String collectionName, long collectionId) {
+        return seriesDao.doesCollectionExistExcludeId(collectionName, collectionId);
+    }
 }

@@ -81,9 +81,8 @@ public class CustomVideoView extends FrameLayout {
         });
     }
 
-    private void centerVideo() {
+    private void centerVideo(MediaPlayer mp) {
         videoView.post(() -> {
-            MediaPlayer mp = videoView.getCurrentMediaPlayer();
             if (mp != null) {
                 // Получаем размеры видео
                 int videoWidth = mp.getVideoWidth();
@@ -135,7 +134,6 @@ public class CustomVideoView extends FrameLayout {
         return videoView.isPlaying();
     }
 
-
     public MediaPlayer getCurrentMediaPlayer() {
         return currentMediaPlayer;
     }
@@ -171,7 +169,8 @@ public class CustomVideoView extends FrameLayout {
         thumbnailView.setOnTouchListener(listener);
     }
 
-    private void setVideoThumbnail(String videoUri, ImageView thumbnailView) {
+    // Метод для установки превью из видео файла (если нужно)
+    public void setVideoThumbnail(String videoUri) {
         try {
             // Используем MediaMetadataRetriever для получения превью
             android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
@@ -192,5 +191,11 @@ public class CustomVideoView extends FrameLayout {
             e.printStackTrace();
             thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
         }
+    }
+
+    // Альтернативный метод с использованием URI
+    public void setVideoThumbnail(Uri videoUri) {
+        if (videoUri == null) return;
+        setVideoThumbnail(videoUri.toString());
     }
 }
