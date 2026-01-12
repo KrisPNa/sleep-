@@ -49,31 +49,39 @@
     <!-- Дополнительные полезные цвета -->
     <color name="gray_light">#FFE0E0E0</color>
     <color name="gray_dark">#FF616161</color>
-    <color name="transparent_black">#33000000</color>
-    <color name="transparent_white">#33FFFFFF</color> <!-- ДОБАВЛЕНО -->
-    <color name="green">#4CAF50</color>          <!-- Добавлен -->
-    <color name="green_dark">#388E3C</color>     <!-- Добавлен -->
-    <color name="red">#F44336</color>           <!-- Добавлен -->
-    <color name="orange">#FF9800</color>        <!-- Добавлен -->
-    <color name="yellow">#FFEB3B</color>        <!-- Добавлен -->
-    <color name="purple">#9C27B0</color>        <!-- Добавлен -->
-    <color name="pink">#E91E63</color>          <!-- Добавлен -->
+    <color name="transparent_black">#80000000</color> <!-- ИЗМЕНЕНО на 50% прозрачность -->
+    <color name="transparent_white">#33FFFFFF</color>
+
+    <!-- Цвета для элементов интерфейса -->
+    <color name="green">#4CAF50</color>
+    <color name="green_dark">#388E3C</color>
+    <color name="red">#F44336</color>
+    <color name="orange">#FF9800</color>
+    <color name="yellow">#FFEB3B</color>
+    <color name="purple">#9C27B0</color>
+    <color name="pink">#E91E63</color>
 
     <!-- Цвета ошибок и состояний -->
     <color name="red_error">#F44336</color>
 
     <!-- Цвета для избранного -->
-    <color name="favorite_star">#FFC107</color> <!-- Золотистый цвет для избранного -->
+    <color name="favorite_star">#FFC107</color>
 
     <!-- Цвета для поиска и фильтров -->
-    <color name="search_background">#FFF5F5F5</color> <!-- ДОБАВЛЕНО -->
-    <color name="chip_selected">#FF2196F3</color> <!-- ДОБАВЛЕНО -->
-    <color name="chip_unselected">#FFF5F5F5</color> <!-- ДОБАВЛЕНО -->
+    <color name="search_background">#FFF5F5F5</color>
+    <color name="chip_selected">#FF2196F3</color>
+    <color name="chip_unselected">#FFF5F5F5</color>
 
     <!-- Цвета для кнопок и состояний -->
-    <color name="button_disabled">#FFE0E0E0</color> <!-- ДОБАВЛЕНО -->
-    <color name="button_pressed">#FF1976D2</color> <!-- ДОБАВЛЕНО -->
+    <color name="button_disabled">#FFE0E0E0</color>
+    <color name="button_pressed">#FF1976D2</color>
 
     <!-- Цвета для карточек -->
-    <color name="card_shadow">#1F000000</color> <!-- ДОБАВЛЕНО -->
+    <color name="card_shadow">#1F000000</color>
+
+    <!-- Новые цвета для медиафайлов -->
+    <color name="media_background">#FFE0E0E0</color>
+    <color name="video_overlay">#80000000</color>
+    <color name="delete_button_bg">#FFFFFFFF</color>
+    <color name="delete_button_border">#FFE0E0E0</color>
 </resources>

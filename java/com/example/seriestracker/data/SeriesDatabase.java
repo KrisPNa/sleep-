@@ -12,12 +12,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import com.example.seriestracker.data.dao.SeriesDao;
 import com.example.seriestracker.data.entities.Collection;
+import com.example.seriestracker.data.entities.MediaFile;
 import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.data.entities.SeriesCollectionCrossRef;
 
 @Database(
-        entities = {Series.class, Collection.class, SeriesCollectionCrossRef.class},
-        version = 5,
+        entities = {Series.class, Collection.class, SeriesCollectionCrossRef.class,  MediaFile.class},
+        version = 8,
         exportSchema = false
 )
 public abstract class SeriesDatabase extends RoomDatabase {

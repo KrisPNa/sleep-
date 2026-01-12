@@ -9,6 +9,7 @@ import androidx.room.Update;
 
 import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.data.entities.CollectionWithSeries;
+import com.example.seriestracker.data.entities.MediaFile;
 import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.data.entities.SeriesCollectionCrossRef;
 
@@ -160,5 +161,29 @@ public interface SeriesDao {
     @Query("DELETE FROM series_collection_cross_ref WHERE seriesId = :seriesId")
     void deleteAllSeriesCollectionRelationsForSeries(long seriesId);
 
+// В SeriesDao.java добавьте:
 
+
+    // === Медиафайлы ===
+    @Insert
+    long insertMediaFile(MediaFile mediaFile);
+
+    @Query("DELETE FROM media_files WHERE id = :mediaId")
+    void deleteMediaFile(long mediaId);
+
+    @Query("DELETE FROM media_files WHERE seriesId = :seriesId")
+    void deleteAllMediaFilesForSeries(long seriesId);
+
+    @Query("SELECT * FROM media_files WHERE seriesId = :seriesId ORDER BY createdAt DESC")
+    LiveData<List<MediaFile>> getMediaFilesForSeries(long seriesId);
+
+    @Query("SELECT * FROM media_files WHERE id = :mediaId")
+    LiveData<MediaFile> getMediaFileById(long mediaId);
+
+    // Синхронные методы для резервного копирования
+    @Query("SELECT * FROM media_files WHERE seriesId = :seriesId")
+    List<MediaFile> getMediaFilesForSeriesSync(long seriesId);
+
+    @Query("SELECT * FROM media_files")
+    List<MediaFile> getAllMediaFilesSync();
 }

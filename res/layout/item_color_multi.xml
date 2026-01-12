@@ -34,6 +34,20 @@
                 android:visibility="gone"
                 android:elevation="4dp" />
 
+            <!-- Порядковый номер выбора -->
+            <TextView
+                android:id="@+id/selectionOrder"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_alignParentEnd="true"
+                android:layout_alignParentBottom="true"
+                android:background="@drawable/circle_accent"
+                android:gravity="center"
+                android:textColor="@android:color/white"
+                android:textSize="10sp"
+                android:visibility="gone"
+                android:elevation="5dp" />
+
         </RelativeLayout>
 
     </LinearLayout>

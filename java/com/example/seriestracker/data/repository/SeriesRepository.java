@@ -11,9 +11,11 @@ import com.example.seriestracker.data.SeriesDatabase;
 import com.example.seriestracker.data.dao.SeriesDao;
 import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.data.entities.CollectionWithSeries;
+import com.example.seriestracker.data.entities.MediaFile;
 import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.data.entities.SeriesCollectionCrossRef;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -277,14 +279,47 @@ public class SeriesRepository {
 
     public void updateSeriesCollections(long seriesId, List<Long> newCollectionIds) {
         executor.execute(() -> {
-            // Удаляем все текущие связи
-            seriesDao.deleteAllSeriesCollectionRelationsForSeries(seriesId);
+            try {
+                // 1. Получаем текущие коллекции сериала
+                List<SeriesCollectionCrossRef> currentRelations = seriesDao.getAllRelationsSync();
+                List<Long> currentCollectionIds = new ArrayList<>();
 
-            // Добавляем новые связи
-            if (newCollectionIds != null) {
-                for (Long collectionId : newCollectionIds) {
+                for (SeriesCollectionCrossRef relation : currentRelations) {
+                    if (relation.getSeriesId() == seriesId) {
+                        currentCollectionIds.add(relation.getCollectionId());
+                    }
+                }
+
+                // 2. Определяем коллекции для удаления и добавления
+                List<Long> collectionsToRemove = new ArrayList<>(currentCollectionIds);
+                collectionsToRemove.removeAll(newCollectionIds);
+
+                List<Long> collectionsToAdd = new ArrayList<>(newCollectionIds);
+                collectionsToAdd.removeAll(currentCollectionIds);
+
+                // 3. Удаляем старые связи
+                for (Long collectionId : collectionsToRemove) {
+                    seriesDao.deleteSeriesCollectionCrossRef(seriesId, collectionId);
+                }
+
+                // 4. Добавляем новые связи
+                for (Long collectionId : collectionsToAdd) {
                     SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
                     seriesDao.insertCrossRef(crossRef);
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                // В случае ошибки просто заменяем все связи
+                if (newCollectionIds != null) {
+                    // Удаляем все текущие связи
+                    seriesDao.deleteAllSeriesCollectionRelationsForSeries(seriesId);
+
+                    // Добавляем новые связи
+                    for (Long collectionId : newCollectionIds) {
+                        SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
+                        seriesDao.insertCrossRef(crossRef);
+                    }
                 }
             }
         });
@@ -303,5 +338,49 @@ public class SeriesRepository {
                 }
             }
         });
+    }
+
+    // Добавьте эти методы в SeriesRepository:
+
+    // === Медиафайлы ===
+    public LiveData<List<MediaFile>> getMediaFilesForSeries(long seriesId) {
+        return seriesDao.getMediaFilesForSeries(seriesId);
+    }
+
+    public void insertMediaFile(MediaFile mediaFile) {
+        executor.execute(() -> seriesDao.insertMediaFile(mediaFile));
+    }
+
+    public void deleteMediaFile(long mediaId) {
+        executor.execute(() -> seriesDao.deleteMediaFile(mediaId));
+    }
+
+    public void deleteAllMediaFilesForSeries(long seriesId) {
+        executor.execute(() -> seriesDao.deleteAllMediaFilesForSeries(seriesId));
+    }
+
+    // Синхронные методы для резервного копирования
+    public List<MediaFile> getMediaFilesForSeriesSync(long seriesId) {
+        try {
+            Future<List<MediaFile>> future = executor.submit(() ->
+                    seriesDao.getMediaFilesForSeriesSync(seriesId)
+            );
+            return future.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public List<MediaFile> getAllMediaFilesSync() {
+        try {
+            Future<List<MediaFile>> future = executor.submit(() ->
+                    seriesDao.getAllMediaFilesSync()
+            );
+            return future.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 }

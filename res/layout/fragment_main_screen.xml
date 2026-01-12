@@ -14,7 +14,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingTop="30dp"
+
         android:gravity="center_vertical"
         android:layout_marginBottom="16dp">
 
@@ -24,7 +24,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
 
-            android:text="Нет, лакорны смотреть"
+            android:gravity="center"
+            android:text="Нет, лакорн смотреть"
             android:textColor="@color/primary_blue"
             android:textSize="28sp"
             android:textStyle="bold" />
@@ -32,12 +33,13 @@
         <!-- Иконка поиска -->
         <ImageButton
             android:id="@+id/searchButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_baseline_search_24"
-            android:tint="@color/primary_blue"
+            android:layout_width="46dp"
+            android:paddingTop="7dp"
+            android:layout_height="match_parent"
             android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Поиск" />
+            android:contentDescription="Поиск"
+            android:src="@drawable/ic_baseline_search_24"
+            android:tint="@color/primary_blue" />
 
     </LinearLayout>
 
@@ -61,7 +63,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginBottom="12dp">
+                >
 
                 <Button
                     android:id="@+id/createCollectionButton"
@@ -98,33 +100,41 @@
             </LinearLayout>
 
             <!-- Вторая строка кнопок -->
-            <Button
-                android:id="@+id/allSeriesButton"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Просмотреть все сериалы"
-                android:textSize="14sp"
-                android:minHeight="48dp"
-                android:backgroundTint="@color/primary_blue_light"
-                android:textColor="@color/white"
-                android:drawableStart="@drawable/ic_baseline_list_24"
-                android:drawablePadding="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+                android:orientation="horizontal">
 
-            <Button
-                android:id="@+id/allCollection"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Управлять коллекциями"
-                android:textSize="14sp"
-                android:minHeight="48dp"
-                android:backgroundTint="@color/primary_blue_light"
-                android:textColor="@color/white"
-                android:drawableStart="@drawable/ic_baseline_settings_24"
-                android:drawablePadding="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
 
+
+                <Button
+                    android:id="@+id/allCollection"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="154dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginEnd="12dp"
+                    android:backgroundTint="@color/primary_blue_light"
+                    android:drawableStart="@drawable/ic_baseline_settings_24"
+                    android:drawablePadding="8dp"
+                    android:minHeight="48dp"
+                    android:text="Коллекции"
+                    android:textColor="@color/white"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/allSeriesButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="154dp"
+                    android:layout_height="wrap_content"
+
+                    android:backgroundTint="@color/primary_blue_light"
+                    android:drawableStart="@drawable/ic_baseline_list_24"
+                    android:drawablePadding="8dp"
+                    android:minHeight="48dp"
+                    android:text="Сериалы"
+                    android:textColor="@color/white"
+                    android:textSize="13sp" />
+            </LinearLayout>
         </LinearLayout>
 
     </androidx.cardview.widget.CardView>
@@ -153,7 +163,7 @@
             android:layout_height="wrap_content"
             android:text="0"
             android:textSize="16sp"
-            android:textColor="@color/text_gray"
+            android:textColor="@color/white"
             android:background="@drawable/counter_background"
             android:paddingHorizontal="12dp"
             android:paddingVertical="4dp" />

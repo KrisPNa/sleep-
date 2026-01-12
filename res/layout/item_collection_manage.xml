@@ -89,8 +89,7 @@
                 android:layout_height="wrap_content"
                 android:text="0"
                 android:textSize="14sp"
-                android:textStyle="bold"
-                android:textColor="@color/primary_blue"
+                android:textColor="@color/white"
                 android:background="@drawable/counter_background_small"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="2dp" />

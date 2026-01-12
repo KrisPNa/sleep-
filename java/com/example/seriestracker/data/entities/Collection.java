@@ -2,8 +2,15 @@ package com.example.seriestracker.data.entities;
 
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
+import androidx.room.TypeConverters;
+
+import com.example.seriestracker.data.converters.ColorsConverter;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Entity(tableName = "collections")
+@TypeConverters(ColorsConverter.class)
 public class Collection {
     @PrimaryKey(autoGenerate = true)
     private long id;
@@ -11,7 +18,8 @@ public class Collection {
     private String name;
     private long createdAt;
     private boolean isFavorite;
-    private String color; // Новое поле для цвета
+    private List<String> colors; // Изменено на список цветов
+    private int seriesCount; // ДОБАВЛЕНО: поле для количества сериалов
 
     // Предопределенные цвета
     public static final String[] AVAILABLE_COLORS = {
@@ -69,7 +77,8 @@ public class Collection {
     public Collection() {
         this.createdAt = System.currentTimeMillis();
         this.isFavorite = false;
-        this.color = AVAILABLE_COLORS[0]; // Синий по умолчанию
+        this.colors = Arrays.asList(AVAILABLE_COLORS[0]); // Синий по умолчанию
+        this.seriesCount = 0; // Инициализация
     }
 
     public Collection(String name) {
@@ -77,21 +86,23 @@ public class Collection {
         this.name = name;
     }
 
-    public Collection(String name, String color) {
+    public Collection(String name, List<String> colors) {
         this();
         this.name = name;
-        this.color = color;
+        this.colors = colors;
     }
 
     public long getId() { return id; }
     public String getName() { return name; }
     public long getCreatedAt() { return createdAt; }
     public boolean isFavorite() { return isFavorite; }
-    public String getColor() { return color; }
+    public List<String> getColors() { return colors; }
+    public int getSeriesCount() { return seriesCount; } // ДОБАВЛЕНО: геттер
 
     public void setId(long id) { this.id = id; }
     public void setName(String name) { this.name = name; }
     public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
     public void setFavorite(boolean favorite) { isFavorite = favorite; }
-    public void setColor(String color) { this.color = color; }
+    public void setColors(List<String> colors) { this.colors = colors; }
+    public void setSeriesCount(int seriesCount) { this.seriesCount = seriesCount; } // ДОБАВЛЕНО: сеттер
 }

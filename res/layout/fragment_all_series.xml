@@ -13,7 +13,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingTop="30dp"
         android:layout_marginBottom="16dp"
         android:minHeight="48dp">
 
@@ -21,6 +20,7 @@
             android:id="@+id/backButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
+            android:paddingTop="3dp"
             android:src="@drawable/ic_baseline_arrow_back_24"
             android:background="@android:color/transparent"
             android:contentDescription="Кнопка назад" />
@@ -30,10 +30,42 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Все сериалы"
+
+            android:textColor="@color/primary_blue"
             android:textSize="24sp"
             android:textStyle="bold"
             android:gravity="center"
             android:layout_gravity="center_vertical" />
+
+    </LinearLayout>
+
+    <!-- Строка "Все сериалы" с бейджем -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Все сериалы"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark" />
+
+        <TextView
+            android:id="@+id/seriesCountBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0"
+            android:textSize="14sp"
+            android:textColor="@color/white"
+            android:background="@drawable/counter_background"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp" />
 
     </LinearLayout>
 
