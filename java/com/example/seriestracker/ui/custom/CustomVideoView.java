@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -22,6 +23,8 @@ public class CustomVideoView extends FrameLayout {
     private ImageView thumbnailView;
     private ProgressBar progressBar;
     private MediaPlayer.OnPreparedListener preparedListener;
+    private MediaPlayer.OnInfoListener infoListener;
+    private MediaPlayer.OnErrorListener errorListener;
     private MediaPlayer currentMediaPlayer;
 
     public CustomVideoView(Context context) {
@@ -46,6 +49,34 @@ public class CustomVideoView extends FrameLayout {
         thumbnailView = findViewById(R.id.thumbnailView);
         progressBar = findViewById(R.id.progressBar);
 
+        // Добавляем отладочные слушатели по умолчанию
+        videoView.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+            @Override
+            public boolean onError(MediaPlayer mp, int what, int extra) {
+                Log.e("CustomVideoView", "VideoView error - what: " + what + ", extra: " + extra);
+                // Скрыть прогресс бар при ошибке
+                progressBar.setVisibility(View.GONE);
+                // Показать миниатюру обратно при ошибке
+                thumbnailView.setVisibility(View.VISIBLE);
+                videoView.setVisibility(View.GONE);
+                if (errorListener != null) {
+                    return errorListener.onError(mp, what, extra);
+                }
+                return false;
+            }
+        });
+
+        videoView.setOnInfoListener(new MediaPlayer.OnInfoListener() {
+            @Override
+            public boolean onInfo(MediaPlayer mp, int what, int extra) {
+                Log.d("CustomVideoView", "VideoView info - what: " + what + ", extra: " + extra);
+                if (infoListener != null) {
+                    return infoListener.onInfo(mp, what, extra);
+                }
+                return false;
+            }
+        });
+
         // Скрыть видео изначально
         videoView.setVisibility(View.GONE);
         thumbnailView.setVisibility(View.VISIBLE);
@@ -53,7 +84,14 @@ public class CustomVideoView extends FrameLayout {
     }
 
     public void setVideoURI(Uri uri) {
+        if (uri == null) {
+            Log.e("CustomVideoView", "setVideoURI called with null URI");
+            return;
+        }
+        Log.d("CustomVideoView", "Setting video URI: " + uri.toString());
         videoView.setVideoURI(uri);
+        // Автоматически начинаем подготовку видео
+        videoView.requestFocus();
     }
 
     public void setThumbnail(String imageUri) {
@@ -67,6 +105,7 @@ public class CustomVideoView extends FrameLayout {
     public void setOnPreparedListener(MediaPlayer.OnPreparedListener listener) {
         this.preparedListener = listener;
         videoView.setOnPreparedListener(mp -> {
+            Log.d("CustomVideoView", "Video prepared - width: " + mp.getVideoWidth() + ", height: " + mp.getVideoHeight());
             currentMediaPlayer = mp;
             if (preparedListener != null) {
                 preparedListener.onPrepared(mp);
@@ -81,6 +120,14 @@ public class CustomVideoView extends FrameLayout {
         });
     }
 
+    public void setOnErrorListener(MediaPlayer.OnErrorListener listener) {
+        this.errorListener = listener;
+    }
+
+    public void setOnInfoListener(MediaPlayer.OnInfoListener listener) {
+        this.infoListener = listener;
+    }
+
     private void centerVideo(MediaPlayer mp) {
         videoView.post(() -> {
             if (mp != null) {
@@ -88,10 +135,14 @@ public class CustomVideoView extends FrameLayout {
                 int videoWidth = mp.getVideoWidth();
                 int videoHeight = mp.getVideoHeight();
 
+                Log.d("CustomVideoView", "Video dimensions - width: " + videoWidth + ", height: " + videoHeight);
+
                 if (videoWidth > 0 && videoHeight > 0) {
                     // Получаем размеры VideoView
                     int viewWidth = videoView.getWidth();
                     int viewHeight = videoView.getHeight();
+
+                    Log.d("CustomVideoView", "View dimensions - width: " + viewWidth + ", height: " + viewHeight);
 
                     // Вычисляем масштаб
                     float widthRatio = (float) viewWidth / videoWidth;
@@ -108,6 +159,8 @@ public class CustomVideoView extends FrameLayout {
 
                     // Устанавливаем отступы
                     videoView.setPadding(left, top, left, top);
+
+                    Log.d("CustomVideoView", "Video centered - padding: left=" + left + ", top=" + top);
                 }
             }
         });
@@ -118,16 +171,21 @@ public class CustomVideoView extends FrameLayout {
     }
 
     public void start() {
+        Log.d("CustomVideoView", "Starting video playback");
         videoView.start();
     }
 
     public void pause() {
+        Log.d("CustomVideoView", "Pausing video playback");
         videoView.pause();
     }
 
     public void stopPlayback() {
+        Log.d("CustomVideoView", "Stopping video playback");
         videoView.stopPlayback();
         currentMediaPlayer = null;
+        // Показываем превью после остановки
+        showThumbnail();
     }
 
     public boolean isPlaying() {
@@ -157,6 +215,7 @@ public class CustomVideoView extends FrameLayout {
     public void showThumbnail() {
         thumbnailView.setVisibility(View.VISIBLE);
         videoView.setVisibility(View.GONE);
+        videoView.stopPlayback();
     }
 
     public void hideThumbnail() {
@@ -172,6 +231,7 @@ public class CustomVideoView extends FrameLayout {
     // Метод для установки превью из видео файла (если нужно)
     public void setVideoThumbnail(String videoUri) {
         try {
+            Log.d("CustomVideoView", "Setting video thumbnail from URI: " + videoUri);
             // Используем MediaMetadataRetriever для получения превью
             android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
             retriever.setDataSource(videoUri, new HashMap<String, String>());
@@ -181,14 +241,16 @@ public class CustomVideoView extends FrameLayout {
 
             if (bitmap != null) {
                 thumbnailView.setImageBitmap(bitmap);
+                Log.d("CustomVideoView", "Video thumbnail loaded successfully");
             } else {
                 // Если не удалось получить превью, показываем иконку видео
                 thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
+                Log.d("CustomVideoView", "Video thumbnail not available, using default icon");
             }
 
             retriever.release();
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("CustomVideoView", "Error loading video thumbnail: " + e.getMessage(), e);
             thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
         }
     }
@@ -197,5 +259,13 @@ public class CustomVideoView extends FrameLayout {
     public void setVideoThumbnail(Uri videoUri) {
         if (videoUri == null) return;
         setVideoThumbnail(videoUri.toString());
+    }
+
+    // Метод для сброса состояния
+    public void reset() {
+        stopPlayback();
+        showThumbnail();
+        progressBar.setVisibility(View.GONE);
+        currentMediaPlayer = null;
     }
 }
