@@ -24,6 +24,7 @@ public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaViewHol
 
     private List<MediaFile> mediaFiles;
     private final OnMediaClickListener listener;
+    private boolean editMode = false; // По умолчанию режим просмотра (без возможности удаления)
 
     public MediaAdapter(OnMediaClickListener listener) {
         this.listener = listener;
@@ -34,12 +35,17 @@ public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaViewHol
         notifyDataSetChanged();
     }
 
+    public void setEditMode(boolean editMode) {
+        this.editMode = editMode;
+        notifyDataSetChanged(); // Обновляем весь список, чтобы применить изменения
+    }
+
     @NonNull
     @Override
     public MediaViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_media_grid, parent, false);
-        return new MediaViewHolder(view);
+        return new MediaViewHolder(view, this); // Передаем адаптер в ViewHolder
     }
 
     @Override
@@ -55,12 +61,13 @@ public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaViewHol
         return mediaFiles != null ? mediaFiles.size() : 0;
     }
 
-    static class MediaViewHolder extends RecyclerView.ViewHolder {
+    // Внутренний (не статический) класс ViewHolder
+    class MediaViewHolder extends RecyclerView.ViewHolder {
         private final ImageView mediaImageView;
         private final ImageView videoIconView;
         private final ImageButton deleteButton;
 
-        public MediaViewHolder(@NonNull View itemView) {
+        public MediaViewHolder(@NonNull View itemView, MediaAdapter adapter) {
             super(itemView);
             mediaImageView = itemView.findViewById(R.id.mediaImageView);
             videoIconView = itemView.findViewById(R.id.videoIconView);
@@ -93,12 +100,17 @@ public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaViewHol
                 }
             });
 
-            // Кнопка удаления
-            deleteButton.setOnClickListener(v -> {
-                if (listener != null) {
-                    listener.onMediaDelete(mediaFile);
-                }
-            });
+            // Кнопка удаления - используем editMode из внешнего класса
+            if (editMode) { // Теперь это работает, так как ViewHolder не статический
+                deleteButton.setVisibility(View.VISIBLE);
+                deleteButton.setOnClickListener(v -> {
+                    if (listener != null) {
+                        listener.onMediaDelete(mediaFile);
+                    }
+                });
+            } else {
+                deleteButton.setVisibility(View.GONE);
+            }
         }
     }
 }

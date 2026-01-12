@@ -269,13 +269,23 @@
 
         <!-- Кнопки действий -->
         <Button
+            android:id="@+id/editButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Редактировать"
+            android:textSize="16sp"
+            android:minHeight="48dp"
+            android:layout_marginBottom="12dp" />
+
+        <Button
             android:id="@+id/saveButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Сохранить"
             android:textSize="16sp"
             android:minHeight="48dp"
-            android:layout_marginBottom="12dp" />
+            android:layout_marginBottom="12dp"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/deleteButton"
@@ -285,7 +295,8 @@
             android:textSize="16sp"
             android:minHeight="48dp"
             android:backgroundTint="@android:color/holo_red_dark"
-            android:layout_marginBottom="24dp"/>
+            android:layout_marginBottom="24dp"
+            android:visibility="gone" />
 
     </LinearLayout>
 </ScrollView>

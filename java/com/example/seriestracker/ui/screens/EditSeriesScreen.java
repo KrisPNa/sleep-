@@ -72,6 +72,7 @@ public class EditSeriesScreen extends Fragment {
     private EditText episodesEditText;
     private ImageView seriesImageView;
     private Button selectImageButton;
+    private Button editButton;
     private Button saveButton;
     private Button deleteButton;
     private MaterialAutoCompleteTextView statusSpinner;
@@ -148,6 +149,7 @@ public class EditSeriesScreen extends Fragment {
         episodesEditText = view.findViewById(R.id.episodesEditText);
         seriesImageView = view.findViewById(R.id.seriesImageView);
         selectImageButton = view.findViewById(R.id.selectImageButton);
+        editButton = view.findViewById(R.id.editButton);
         saveButton = view.findViewById(R.id.saveButton);
         deleteButton = view.findViewById(R.id.deleteButton);
         statusSpinner = view.findViewById(R.id.statusSpinner);
@@ -180,6 +182,51 @@ public class EditSeriesScreen extends Fragment {
         GridLayoutManager gridLayoutManager = new GridLayoutManager(getContext(), 3); // 3 колонки
         mediaRecyclerView.setLayoutManager(gridLayoutManager);
         mediaRecyclerView.setAdapter(mediaAdapter);
+    }
+    private void setReadOnlyMode(boolean readOnly) {
+        // Управление видимостью кнопок
+        if (readOnly) {
+            editButton.setVisibility(View.VISIBLE);
+            saveButton.setVisibility(View.GONE);
+            deleteButton.setVisibility(View.GONE);
+        } else {
+            editButton.setVisibility(View.GONE);
+            saveButton.setVisibility(View.VISIBLE);
+            deleteButton.setVisibility(View.VISIBLE);
+        }
+
+        // Управление редактируемостью полей
+        titleEditText.setEnabled(!readOnly);
+        titleEditText.setFocusable(!readOnly);
+        titleEditText.setFocusableInTouchMode(!readOnly);
+
+        notesEditText.setEnabled(!readOnly);
+        notesEditText.setFocusable(!readOnly);
+        notesEditText.setFocusableInTouchMode(!readOnly);
+
+        genreEditText.setEnabled(!readOnly);
+        genreEditText.setFocusable(!readOnly);
+        genreEditText.setFocusableInTouchMode(!readOnly);
+
+        seasonsEditText.setEnabled(!readOnly);
+        seasonsEditText.setFocusable(!readOnly);
+        seasonsEditText.setFocusableInTouchMode(!readOnly);
+
+        episodesEditText.setEnabled(!readOnly);
+        episodesEditText.setFocusable(!readOnly);
+        episodesEditText.setFocusableInTouchMode(!readOnly);
+
+        statusSpinner.setEnabled(!readOnly);
+        favoriteCheckBox.setEnabled(!readOnly);
+
+        selectImageButton.setEnabled(!readOnly);
+        collectionsButton.setEnabled(!readOnly);
+        addMediaButton.setEnabled(!readOnly);
+
+        // Для RecyclerView медиафайлов нужно обновить адаптер
+        if (mediaAdapter != null) {
+            mediaAdapter.setEditMode(!readOnly);
+        }
     }
 
 
@@ -378,6 +425,12 @@ public class EditSeriesScreen extends Fragment {
             return true;
         });
 
+        // Устанавливаем начальный режим - только для просмотра
+        setReadOnlyMode(true);
+
+        editButton.setOnClickListener(v -> {
+            setReadOnlyMode(false); // Переключаем в режим редактирования
+        });
         collectionsButton.setOnClickListener(v -> {
             showCollectionsDialog();
         });
