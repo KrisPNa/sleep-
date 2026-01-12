@@ -27,6 +27,7 @@ import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 import com.google.android.material.card.MaterialCardView;
 
 import java.util.Arrays;
+import java.util.List;
 
 public class CreateCollectionScreen extends Fragment {
 
@@ -43,6 +44,8 @@ public class CreateCollectionScreen extends Fragment {
     private String selectedColor;
     private String selectedColorName;
     private boolean isChecking = false;
+    private boolean isEditing = false;
+    private long collectionId = -1;
 
     public CreateCollectionScreen() {
         // Required empty public constructor
@@ -68,32 +71,49 @@ public class CreateCollectionScreen extends Fragment {
         previewNameText = view.findViewById(R.id.previewNameText);
         previewColorText = view.findViewById(R.id.previewColorText);
 
+        // Check if we're in editing mode
+        Bundle args = getArguments();
+        if (args != null) {
+            isEditing = args.getBoolean("isEditing", false);
+            collectionId = args.getLong("collectionId", -1);
+        }
         // Инициализация адаптера цветов
         setupColorAdapter();
+// Обновляем UI based on mode
+        if (isEditing && collectionId != -1) {
+            loadCollectionForEditing();
+            saveButton.setText("Сохранить");
+        } else {
+            // Устанавливаем фокус на поле ввода
+            collectionNameEditText.requestFocus();
 
-        // Устанавливаем фокус на поле ввода
-        collectionNameEditText.requestFocus();
 
-        // Обновляем предпросмотр при вводе текста
-        collectionNameEditText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            // Обновляем предпросмотр при вводе текста
+            collectionNameEditText.addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                updatePreview();
-            }
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    updatePreview();
+                }
 
-            @Override
-            public void afterTextChanged(Editable s) {}
-        });
+                @Override
+                public void afterTextChanged(Editable s) {}
+            });
+        }
 
         // Обработчик кнопки назад
         backButton.setOnClickListener(v -> {
             requireActivity().getSupportFragmentManager().popBackStack();
         });
-
-        saveButton.setOnClickListener(v -> createCollection());
+        saveButton.setOnClickListener(v -> {
+            if (isEditing) {
+                updateCollection();
+            } else {
+                createCollection();
+            }
+        });
     }
 
     private void setupColorAdapter() {
@@ -166,5 +186,128 @@ public class CreateCollectionScreen extends Fragment {
                 requireActivity().getSupportFragmentManager().popBackStack();
             }
         });
+    }
+
+    private void loadCollectionForEditing() {
+        viewModel.getCollectionById(collectionId).observe(getViewLifecycleOwner(), collection -> {
+            if (collection != null) {
+                // Set the collection name in the EditText
+                collectionNameEditText.setText(collection.getName());
+
+                // Set selection in the EditText to the end
+                collectionNameEditText.setSelection(collectionNameEditText.getText().length());
+
+                // Get the first color from the collection's color list
+                List<String> colors = collection.getColors();
+                if (colors != null && !colors.isEmpty()) {
+                    selectedColor = colors.get(0);
+
+                    // Find the color name based on the selected color
+                    String colorName = getColorName(selectedColor);
+                    selectedColorName = colorName;
+
+                    // Update the color adapter selection
+                    if (colorAdapter != null) {
+                        colorAdapter.setSelectedColor(selectedColor);
+                    }
+                } else {
+                    // Fallback to default color if collection has no colors
+                    selectedColor = Collection.AVAILABLE_COLORS[0];
+                    selectedColorName = "Синий";
+                }
+
+                updatePreview();
+            }
+        });
+    }
+
+    private void updateCollection() {
+        String collectionName = collectionNameEditText.getText().toString().trim();
+
+        if (collectionName.isEmpty()) {
+            Toast.makeText(getContext(), "Введите название коллекции", Toast.LENGTH_SHORT).show();
+            collectionNameEditText.requestFocus();
+            return;
+        }
+
+        if (isChecking) {
+            return;
+        }
+
+        isChecking = true;
+
+        // First get the collection to update
+        viewModel.getCollectionById(collectionId).observe(getViewLifecycleOwner(), collection -> {
+            if (collection != null) {
+                // Check if the new name already exists (excluding current collection)
+                viewModel.doesCollectionExistExcludeId(collectionName, collectionId).observe(getViewLifecycleOwner(), exists -> {
+                    isChecking = false;
+
+                    if (exists != null && exists) {
+                        Toast.makeText(getContext(),
+                                "Коллекция \"" + collectionName + "\" уже существует",
+                                Toast.LENGTH_LONG).show();
+                        collectionNameEditText.requestFocus();
+                    } else {
+                        // Update the collection with the new name and selected color
+                        collection.setName(collectionName);
+
+                        // Create a list with the selected color
+                        List<String> updatedColors = Arrays.asList(selectedColor);
+                        collection.setColors(updatedColors);
+
+                        viewModel.updateCollection(collection);
+                        Toast.makeText(getContext(), "Коллекция обновлена!", Toast.LENGTH_SHORT).show();
+
+                        // Return back to the previous screen
+                        requireActivity().getSupportFragmentManager().popBackStack();
+                    }
+                });
+            } else {
+                isChecking = false;
+                Toast.makeText(getContext(), "Ошибка: коллекция не найдена", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private String getColorName(String color) {
+        // This maps the hex color to the corresponding name
+        // We'll implement a basic mapping
+        switch (color.toLowerCase()) {
+            case "#2196f3": // primary blue
+                return "Синий";
+            case "#f44336": // red
+                return "Красный";
+            case "#4caf50": // green
+                return "Зелёный";
+            case "#ff9800": // orange
+                return "Оранжевый";
+            case "#9c27b0": // purple
+                return "Фиолетовый";
+            case "#795548": // brown
+                return "Коричневый";
+            case "#607d8b": // blue gray
+                return "Серо-голубой";
+            case "#e91e63": // pink
+                return "Розовый";
+            case "#00bcd4": // cyan
+                return "Бирюзовый";
+            case "#cddc39": // lime
+                return "Лайм";
+            case "#ffc107": // amber
+                return "Янтарный";
+            case "#ff5722": // deep orange
+                return "Тёмно-оранжевый";
+            case "#3f51b5": // indigo
+                return "Индиго";
+            case "#009688": // teal
+                return "Бирюзово-зелёный";
+            case "#8bc34a": // light green
+                return "Светло-зелёный";
+            case "#ffeb3b": // yellow
+                return "Жёлтый";
+            default:
+                return "Синий"; // default fallback
+        }
     }
 }
