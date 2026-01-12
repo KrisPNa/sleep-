@@ -38,12 +38,14 @@
 
     </LinearLayout>
 
-    <!-- Список сериалов - без боковых отступов, тот же размер что и collectionsRecyclerView -->
+    <!-- Список сериалов - добавляем боковые отступы -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/allSeriesRecyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
         android:clipToPadding="false"/>
 
 </LinearLayout>
