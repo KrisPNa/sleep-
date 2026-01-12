@@ -5,13 +5,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
-import android.widget.TextView; // <-- ДОБАВИТЬ этот импорт
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
-import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -31,7 +29,7 @@ public class AllSeriesScreen extends Fragment {
     private RecyclerView seriesRecyclerView;
     private SeriesAdapter seriesAdapter;
     private ImageButton backButton;
-    private TextView seriesCountBadge; // <-- ДОБАВИТЬ эту переменную
+    private TextView seriesCountBadge;
 
     public AllSeriesScreen() {
         // Required empty public constructor
@@ -40,6 +38,7 @@ public class AllSeriesScreen extends Fragment {
     public void setParentFragment(Fragment parentFragment) {
         this.parentFragment = parentFragment;
     }
+
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -54,7 +53,7 @@ public class AllSeriesScreen extends Fragment {
 
         seriesRecyclerView = view.findViewById(R.id.allSeriesRecyclerView);
         backButton = view.findViewById(R.id.backButton);
-        seriesCountBadge = view.findViewById(R.id.seriesCountBadge); // <-- ИНИЦИАЛИЗИРОВАТЬ здесь
+        seriesCountBadge = view.findViewById(R.id.seriesCountBadge);
 
         // Обработчик кнопки назад
         if (backButton != null) {
@@ -107,31 +106,8 @@ public class AllSeriesScreen extends Fragment {
         seriesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         seriesRecyclerView.setAdapter(seriesAdapter);
 
-        // ПЕРЕМЕЩЕННЫЙ КОД: Добавляем слушатель прокрутки для скрытия/показа кнопок
-        seriesRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            private int scrollThreshold = 20; // Минимальное расстояние прокрутки для срабатывания
-
-            @Override
-            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
-                super.onScrolled(recyclerView, dx, dy);
-
-                if (parentFragment instanceof MainScreen) {
-                    MainScreen mainScreen = (MainScreen) parentFragment;
-                    // Управляем поведением карточки с кнопками
-                    if (Math.abs(dy) > scrollThreshold) { // Проверяем, достаточно ли велика прокрутка
-                        if (dy > 0) {
-                            // Прокрутка вниз - скрываем кнопки
-                            mainScreen.hideButtons();
-                        } else if (dy < 0) {
-                            // Прокрутка вверх - показываем кнопки
-                            mainScreen.showButtons();
-                        }
-                    }
-                }
-            }
-        });
+        // ВСЁ! Никаких addOnScrollListener больше не нужно
     }
-
 
     private void openEditSeriesScreen(Series series) {
         EditSeriesScreen editScreen = EditSeriesScreen.newInstance(series.getId());
