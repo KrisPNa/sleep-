@@ -30,7 +30,6 @@ public class CollectionDetailScreen extends Fragment {
     private long collectionId;
 
     private TextView collectionNameTextView;
-    private TextView seriesCountTextView;
     private TextView seriesCountBadge;
     private RecyclerView seriesRecyclerView;
     private SeriesAdapter seriesAdapter;
@@ -63,7 +62,6 @@ public class CollectionDetailScreen extends Fragment {
         viewModel = new ViewModelProvider(requireActivity()).get(SeriesViewModel.class);
 
         collectionNameTextView = view.findViewById(R.id.collectionNameTextView);
-        seriesCountTextView = view.findViewById(R.id.seriesCountTextView);
         seriesCountBadge = view.findViewById(R.id.seriesCountBadge);
         seriesRecyclerView = view.findViewById(R.id.seriesRecyclerView);
         backButton = view.findViewById(R.id.backButton);
@@ -119,11 +117,8 @@ public class CollectionDetailScreen extends Fragment {
             if (seriesList != null) {
                 seriesAdapter.setSeriesList(seriesList);
 
-                // Обновляем количество в большом счетчике
+                // Только обновляем количество в бейдже
                 int count = seriesList.size();
-                seriesCountTextView.setText(String.valueOf(count));
-
-                // Обновляем количество в бейдже
                 seriesCountBadge.setText(String.valueOf(count));
             }
         });
@@ -135,19 +130,26 @@ public class CollectionDetailScreen extends Fragment {
                     if (collection.getId() == collectionId) {
                         collectionNameTextView.setText(collection.getName());
 
-                        // Устанавливаем цвет коллекции
-                        String color = collection.getColor();
-                        if (color != null && !color.isEmpty()) {
+                        // Устанавливаем цвет коллекции - ИСПРАВЛЕНО: используем getColors()
+                        List<String> colors = collection.getColors();
+                        if (colors != null && !colors.isEmpty()) {
                             try {
+                                // Берем первый цвет из списка для индикатора
+                                String firstColor = colors.get(0);
+
                                 // Устанавливаем цвет индикатора
-                                colorIndicator.setBackgroundColor(Color.parseColor(color));
+                                colorIndicator.setBackgroundColor(Color.parseColor(firstColor));
                                 colorIndicator.setVisibility(View.VISIBLE);
 
                                 // Меняем цвет заголовка на цвет коллекции
-                                collectionNameTextView.setTextColor(Color.parseColor(color));
+                                collectionNameTextView.setTextColor(Color.parseColor(firstColor));
 
-                                // Меняем цвет счетчика на цвет коллекции
-                                seriesCountTextView.setTextColor(Color.parseColor(color));
+                                // Если есть несколько цветов, можно создать градиент (опционально)
+                                if (colors.size() > 1) {
+                                    // Здесь можно создать и установить градиент
+                                    // Например, с помощью GradientDrawable
+                                }
+
                             } catch (Exception e) {
                                 // Если цвет некорректный, используем цвет по умолчанию
                                 setDefaultColors();
@@ -167,7 +169,6 @@ public class CollectionDetailScreen extends Fragment {
         colorIndicator.setBackgroundColor(getResources().getColor(R.color.primary_blue));
         colorIndicator.setVisibility(View.VISIBLE);
         collectionNameTextView.setTextColor(getResources().getColor(R.color.text_dark));
-        seriesCountTextView.setTextColor(getResources().getColor(R.color.primary_blue));
     }
 
     private void openEditSeriesScreen(Series series) {

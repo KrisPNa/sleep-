@@ -1,6 +1,7 @@
 package com.example.seriestracker.ui.adapters;
 
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -8,52 +9,31 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.lifecycle.LifecycleOwner;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.seriestracker.R;
 import com.example.seriestracker.data.entities.Collection;
-import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
+import com.example.seriestracker.utils.GradientUtils;
 import com.google.android.material.card.MaterialCardView;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.CollectionViewHolder> {
 
     public interface OnCollectionClickListener {
         void onCollectionClick(Collection collection);
+        void onFavoriteClick(Collection collection);
     }
 
     private List<Collection> collections;
     private final OnCollectionClickListener listener;
-    private final SeriesViewModel viewModel;
-    private final LifecycleOwner lifecycleOwner;
-    private final Map<Long, Integer> seriesCountMap = new HashMap<>();
 
-    public CollectionAdapter(OnCollectionClickListener listener,
-                             SeriesViewModel viewModel,
-                             LifecycleOwner lifecycleOwner) {
+    public CollectionAdapter(OnCollectionClickListener listener) {
         this.listener = listener;
-        this.viewModel = viewModel;
-        this.lifecycleOwner = lifecycleOwner;
     }
 
     public void setCollections(List<Collection> collections) {
         this.collections = collections;
-
-        if (collections != null) {
-            for (Collection collection : collections) {
-                viewModel.getSeriesCountInCollection(collection.getId())
-                        .observe(lifecycleOwner, count -> {
-                            if (count != null) {
-                                seriesCountMap.put(collection.getId(), count);
-                                notifyDataSetChanged();
-                            }
-                        });
-            }
-        }
         notifyDataSetChanged();
     }
 
@@ -67,86 +47,112 @@ public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.Co
 
     @Override
     public void onBindViewHolder(@NonNull CollectionViewHolder holder, int position) {
-        if (collections != null && position < collections.size()) {
-            Collection collection = collections.get(position);
-            Integer count = seriesCountMap.get(collection.getId());
-            holder.bind(collection, count != null ? count : 0, listener);
-        }
+        Collection collection = collections.get(position);
+        holder.bind(collection, listener);
     }
 
     @Override
     public int getItemCount() {
-        return collections != null ? collections.size() : 0;
+        return collections == null ? 0 : collections.size();
     }
 
     static class CollectionViewHolder extends RecyclerView.ViewHolder {
-        private final MaterialCardView cardView;
-        private final TextView nameTextView;
-        private final TextView countTextView;
-        private final ImageView favoriteStar;
         private final View colorIndicator;
+        private final TextView nameTextView;
+        private final ImageView favoriteIcon;
+        private final TextView seriesCountTextView;
+        private final MaterialCardView cardView;
 
         public CollectionViewHolder(@NonNull View itemView) {
             super(itemView);
-            cardView = itemView.findViewById(R.id.collectionCardView);
-            nameTextView = itemView.findViewById(R.id.collectionNameTextView);
-            countTextView = itemView.findViewById(R.id.seriesCountTextView);
-            favoriteStar = itemView.findViewById(R.id.favoriteStar);
+
+            // Находим элементы по ID из вашего макета
             colorIndicator = itemView.findViewById(R.id.colorIndicator);
+            nameTextView = itemView.findViewById(R.id.collectionNameTextView);
+            favoriteIcon = itemView.findViewById(R.id.favoriteStar); // Используем ID из вашего макета
+            seriesCountTextView = itemView.findViewById(R.id.seriesCountTextView);
+            cardView = itemView.findViewById(R.id.collectionCardView);
         }
 
-        public void bind(Collection collection, int seriesCount, OnCollectionClickListener listener) {
+        public void bind(Collection collection, OnCollectionClickListener listener) {
+            // Устанавливаем название коллекции
             nameTextView.setText(collection.getName());
 
-            // Показываем звездочку если коллекция в избранном
-            if (collection.isFavorite()) {
-                favoriteStar.setVisibility(View.VISIBLE);
-                favoriteStar.setColorFilter(itemView.getContext().getResources().getColor(R.color.favorite_star));
-            } else {
-                favoriteStar.setVisibility(View.GONE);
+            // Получаем основной цвет коллекции (первый цвет из списка)
+            String mainColor = getMainColor(collection);
+
+            // Устанавливаем цвет для ободка карточки
+            try {
+                int strokeColor = Color.parseColor(mainColor);
+                cardView.setStrokeColor(strokeColor);
+                cardView.setStrokeWidth(3); // Толщина ободка в пикселях
+            } catch (Exception e) {
+                // Если цвет некорректен, используем цвет по умолчанию
+                int defaultColor = itemView.getContext().getResources()
+                        .getColor(R.color.primary_blue_light);
+                cardView.setStrokeColor(defaultColor);
+                cardView.setStrokeWidth(3);
             }
 
-            // Устанавливаем цвет коллекции
-            String color = collection.getColor();
-            if (color != null && !color.isEmpty()) {
-                try {
-                    // Устанавливаем цвет обводки карточки
-                    cardView.setStrokeColor(Color.parseColor(color));
-
-                    // Устанавливаем цвет индикатора
-                    colorIndicator.setBackgroundColor(Color.parseColor(color));
-                    colorIndicator.setVisibility(View.VISIBLE);
-                } catch (Exception e) {
-                    // Если цвет некорректный, используем цвет по умолчанию
-                    cardView.setStrokeColor(itemView.getContext().getResources().getColor(R.color.primary_blue_light));
-                    colorIndicator.setBackgroundColor(itemView.getContext().getResources().getColor(R.color.primary_blue));
+            // Устанавливаем цвет/градиент для полоски (colorIndicator)
+            if (collection.getColors() != null && !collection.getColors().isEmpty()) {
+                // Создаем градиентный индикатор
+                GradientDrawable gradient = GradientUtils.createRectGradient(collection.getColors());
+                if (gradient != null) {
+                    gradient.setCornerRadius(2f); // Для тонкой линии
+                    colorIndicator.setBackground(gradient);
+                } else {
+                    // Если градиент не удалось создать, используем первый цвет
+                    try {
+                        colorIndicator.setBackgroundColor(
+                                android.graphics.Color.parseColor(collection.getColors().get(0))
+                        );
+                    } catch (Exception e) {
+                        colorIndicator.setBackgroundColor(0xFF2196F3); // Синий по умолчанию
+                    }
                 }
             } else {
-                // Если цвет не установлен, используем цвет по умолчанию
-                cardView.setStrokeColor(itemView.getContext().getResources().getColor(R.color.primary_blue_light));
-                colorIndicator.setBackgroundColor(itemView.getContext().getResources().getColor(R.color.primary_blue));
+                colorIndicator.setBackgroundColor(0xFF2196F3); // Синий по умолчанию
             }
 
-            // Правильное склонение слова "сериал"
-            String countText = getCountText(seriesCount);
-            countTextView.setText(countText);
+            // Показываем/скрываем иконку избранного
+            if (collection.isFavorite()) {
+                favoriteIcon.setVisibility(View.VISIBLE);
+                favoriteIcon.setImageResource(R.drawable.ic_baseline_star_24_filled); // Звезда заполненная
+            } else {
+                favoriteIcon.setVisibility(View.GONE); // Скрываем если не избранное
+            }
 
-            itemView.setOnClickListener(v -> {
+            // Устанавливаем количество сериалов
+            if (collection.getSeriesCount() > 0) {
+                seriesCountTextView.setText(collection.getSeriesCount() + " сериалов");
+            } else {
+                seriesCountTextView.setText("0 сериалов");
+            }
+
+            // Обработка клика на всей карточке
+            cardView.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onCollectionClick(collection);
                 }
             });
+
+            // Обработка клика на иконке избранного
+            favoriteIcon.setOnClickListener(v -> {
+                if (listener != null) {
+                    listener.onFavoriteClick(collection);
+                }
+            });
         }
 
-        private String getCountText(int seriesCount) {
-            if (seriesCount % 10 == 1 && seriesCount % 100 != 11) {
-                return seriesCount + " сериал";
-            } else if (seriesCount % 10 >= 2 && seriesCount % 10 <= 4 &&
-                    (seriesCount % 100 < 10 || seriesCount % 100 >= 20)) {
-                return seriesCount + " сериала";
-            } else {
-                return seriesCount + " сериалов";
+        private String getMainColor(Collection collection) {
+            // Получаем первый цвет из списка цветов коллекции
+            if (collection.getColors() != null && !collection.getColors().isEmpty()) {
+                return collection.getColors().get(0);
             }
+            // Цвет по умолчанию
+            return "#" + Integer.toHexString(itemView.getContext()
+                    .getResources().getColor(R.color.primary_blue_light)).substring(2);
         }
     }
 }

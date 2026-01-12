@@ -12,6 +12,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -43,6 +44,7 @@ public class BackupSettingsScreen extends Fragment {
     private TextView backupLocationText;
     private View progressBar;
 
+    private ImageButton backButton;
     private SeriesRepository repository;
     private AutoBackupManager backupManager;
 
@@ -107,6 +109,8 @@ public class BackupSettingsScreen extends Fragment {
         restoreBackupBtn = view.findViewById(R.id.restore_backup_btn);
         backupLocationText = view.findViewById(R.id.backup_location_text);
         progressBar = view.findViewById(R.id.progress_bar);
+        backButton = view.findViewById(R.id.backButton);
+
     }
 
     private void setupRepository() {
@@ -142,6 +146,13 @@ public class BackupSettingsScreen extends Fragment {
 
         restoreBackupBtn.setOnClickListener(v -> {
             showRestoreOptions();
+        });
+
+        backButton.setOnClickListener(v -> {
+            // Возвращаемся на предыдущий экран
+            if (getActivity() != null) {
+                getActivity().getSupportFragmentManager().popBackStack();
+            }
         });
     }
 

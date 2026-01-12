@@ -1,4 +1,5 @@
-package com.example.seriestracker.ui.viewmodels;
+
+        package com.example.seriestracker.ui.viewmodels;
 
 import android.app.Application;
 import androidx.lifecycle.AndroidViewModel;
@@ -6,10 +7,12 @@ import androidx.lifecycle.LiveData;
 
 import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.data.entities.CollectionWithSeries;
+import com.example.seriestracker.data.entities.MediaFile;
 import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.data.entities.SeriesCollectionCrossRef;
 import com.example.seriestracker.data.repository.SeriesRepository;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class SeriesViewModel extends AndroidViewModel {
@@ -28,7 +31,23 @@ public class SeriesViewModel extends AndroidViewModel {
 
     // === Коллекции ===
     public void createCollection(String name) {
-        Collection collection = new Collection(name);
+        // Создаем коллекцию с цветом по умолчанию (первый цвет из AVAILABLE_COLORS)
+        List<String> defaultColors = Arrays.asList(Collection.AVAILABLE_COLORS[0]);
+        Collection collection = new Collection(name, defaultColors);
+        repository.insertCollection(collection);
+    }
+
+    // === Создание коллекции с одним цветом ===
+    public void createCollectionWithColor(String name, String color) {
+        // Создаем список с одним цветом
+        List<String> colors = Arrays.asList(color);
+        Collection collection = new Collection(name, colors);
+        repository.insertCollection(collection);
+    }
+
+    // === Создание коллекции с несколькими цветами ===
+    public void createCollectionWithColors(String name, List<String> colors) {
+        Collection collection = new Collection(name, colors);
         repository.insertCollection(collection);
     }
 
@@ -149,21 +168,36 @@ public class SeriesViewModel extends AndroidViewModel {
         return repository.doesSeriesExist(seriesTitle);
     }
 
-    // === Создание коллекции с цветом ===
-    public void createCollection(String name, String color) {
-        Collection collection = new Collection(name, color);
-        repository.insertCollection(collection);
-    }
-
     public void deleteAllSeriesCollectionRelationsForSeries(long seriesId) {
         repository.deleteAllSeriesCollectionRelationsForSeries(seriesId);
     }
 
-    public void updateSeriesCollections(long seriesId, List<Long> collectionIds) {
-        repository.updateSeriesCollections(seriesId, collectionIds);
+    public void updateSeriesCollections(long seriesId, List<Long> newCollectionIds) {
+        repository.updateSeriesCollections(seriesId, newCollectionIds);
     }
 
     public void replaceSeriesCollections(long seriesId, List<Long> collectionIds) {
         repository.replaceSeriesCollections(seriesId, collectionIds);
     }
+
+    // Добавьте в SeriesViewModel:
+    private LiveData<List<MediaFile>> mediaFiles;
+
+    // === Медиафайлы ===
+    public LiveData<List<MediaFile>> getMediaFilesForSeries(long seriesId) {
+        return repository.getMediaFilesForSeries(seriesId);
+    }
+
+    public void addMediaFile(MediaFile mediaFile) {
+        repository.insertMediaFile(mediaFile);
+    }
+
+    public void deleteMediaFile(long mediaId) {
+        repository.deleteMediaFile(mediaId);
+    }
+
+    public void deleteAllMediaFilesForSeries(long seriesId) {
+        repository.deleteAllMediaFilesForSeries(seriesId);
+    }
+
 }

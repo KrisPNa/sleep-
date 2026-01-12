@@ -1,10 +1,12 @@
 package com.example.seriestracker.ui.adapters;
 
+import android.content.Context;
 import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -25,8 +27,10 @@ public class ColorAdapter extends RecyclerView.Adapter<ColorAdapter.ColorViewHol
     private final List<String> colorNames;
     private final OnColorClickListener listener;
     private String selectedColor;
+    private Context context;
 
-    public ColorAdapter(OnColorClickListener listener) {
+    public ColorAdapter(Context context, OnColorClickListener listener) {
+        this.context = context;
         this.listener = listener;
         this.colors = Arrays.asList(Collection.AVAILABLE_COLORS);
         this.colorNames = Arrays.asList(
@@ -60,6 +64,17 @@ public class ColorAdapter extends RecyclerView.Adapter<ColorAdapter.ColorViewHol
         return index >= 0 ? colorNames.get(index) : "Синий";
     }
 
+    public void updateSelectedColorDisplay(View colorView, TextView colorNameView, String color, String colorName) {
+        try {
+            colorView.setBackgroundColor(Color.parseColor(color));
+        } catch (Exception e) {
+            if (context != null) {
+                colorView.setBackgroundColor(context.getResources().getColor(R.color.primary_blue));
+            }
+        }
+        colorNameView.setText(colorName != null ? colorName : "Синий");
+    }
+
     @NonNull
     @Override
     public ColorViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -81,7 +96,7 @@ public class ColorAdapter extends RecyclerView.Adapter<ColorAdapter.ColorViewHol
         return colors.size();
     }
 
-    static class ColorViewHolder extends RecyclerView.ViewHolder {
+    public class ColorViewHolder extends RecyclerView.ViewHolder {
         private final View innerCircle;
         private final ImageView checkIcon;
 
@@ -108,6 +123,9 @@ public class ColorAdapter extends RecyclerView.Adapter<ColorAdapter.ColorViewHol
             itemView.setOnClickListener(v -> {
                 if (!isSelected && listener != null) {
                     listener.onColorClick(color, colorName);
+                    // После выбора цвета обновляем адаптер
+                    setSelectedColor(color);
+                    notifyDataSetChanged();
                 }
             });
         }

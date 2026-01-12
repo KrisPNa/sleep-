@@ -26,6 +26,8 @@ import com.example.seriestracker.ui.adapters.ColorAdapter;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 import com.google.android.material.card.MaterialCardView;
 
+import java.util.Arrays;
+
 public class CreateCollectionScreen extends Fragment {
 
     private SeriesViewModel viewModel;
@@ -95,7 +97,7 @@ public class CreateCollectionScreen extends Fragment {
     }
 
     private void setupColorAdapter() {
-        colorAdapter = new ColorAdapter(new ColorAdapter.OnColorClickListener() {
+        colorAdapter = new ColorAdapter(requireContext(), new ColorAdapter.OnColorClickListener() {
             @Override
             public void onColorClick(String color, String colorName) {
                 selectedColor = color;
@@ -114,6 +116,7 @@ public class CreateCollectionScreen extends Fragment {
         selectedColorName = "Синий";
         updatePreview();
     }
+
     private void updatePreview() {
         // Обновляем название в предпросмотре
         String name = collectionNameEditText.getText().toString().trim();
@@ -155,8 +158,8 @@ public class CreateCollectionScreen extends Fragment {
                         Toast.LENGTH_LONG).show();
                 collectionNameEditText.requestFocus();
             } else {
-                // Создаем коллекцию с выбранным цветом
-                viewModel.createCollection(collectionName, selectedColor);
+                // Создаем коллекцию с выбранным цветом - ИСПРАВЛЕНО: используем createCollectionWithColor
+                viewModel.createCollectionWithColor(collectionName, selectedColor);
                 Toast.makeText(getContext(), "Коллекция создана!", Toast.LENGTH_SHORT).show();
 
                 // Возвращаемся назад

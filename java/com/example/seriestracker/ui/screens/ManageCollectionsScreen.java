@@ -6,7 +6,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button; // Добавьте этот импорт
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -25,6 +25,8 @@ import com.example.seriestracker.ui.adapters.CollectionsManageAdapter;
 import com.example.seriestracker.ui.adapters.ColorAdapter;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 
+import java.util.List;
+
 public class ManageCollectionsScreen extends Fragment {
 
     private SeriesViewModel viewModel;
@@ -32,6 +34,9 @@ public class ManageCollectionsScreen extends Fragment {
     private CollectionsManageAdapter adapter;
     private TextView collectionsCountTextView;
     private TextView noCollectionsTextView;
+
+    // Переменная для хранения выбранного цвета в диалоге
+    private String selectedColor;
 
     public ManageCollectionsScreen() {
         // Required empty public constructor
@@ -61,7 +66,6 @@ public class ManageCollectionsScreen extends Fragment {
         loadData();
     }
 
-    // В файле ManageCollectionsScreen.java обновите setupRecyclerView():
     private void setupRecyclerView() {
         adapter = new CollectionsManageAdapter(new CollectionsManageAdapter.OnCollectionActionListener() {
             @Override
@@ -128,7 +132,9 @@ public class ManageCollectionsScreen extends Fragment {
         editText.setText(collection.getName());
 
         // Настройка выбора цвета
-        setupColorPickerDialog(colorRecyclerView, selectedColorView, selectedColorName, collection.getColor());
+        List<String> colors = collection.getColors();
+        String currentColor = (colors != null && !colors.isEmpty()) ? colors.get(0) : Collection.AVAILABLE_COLORS[0];
+        setupColorPickerDialog(colorRecyclerView, selectedColorView, selectedColorName, currentColor);
 
         builder.setView(dialogView);
 
@@ -143,16 +149,18 @@ public class ManageCollectionsScreen extends Fragment {
                                 "Коллекция \"" + newName + "\" уже существует",
                                 Toast.LENGTH_LONG).show();
                     } else {
-                        // Обновляем коллекцию
+                        // Обновляем коллекцию с новым цветом
+                        List<String> newColors = java.util.Arrays.asList(selectedColor);
+                        collection.setColors(newColors);
                         collection.setName(newName);
-                        collection.setColor(selectedColor); // Сохраняем выбранный цвет
                         viewModel.updateCollection(collection);
                         Toast.makeText(getContext(), "Коллекция обновлена", Toast.LENGTH_SHORT).show();
                     }
                 });
             } else if (newName.equals(collection.getName())) {
                 // Только цвет мог измениться
-                collection.setColor(selectedColor);
+                List<String> newColors = java.util.Arrays.asList(selectedColor);
+                collection.setColors(newColors);
                 viewModel.updateCollection(collection);
                 Toast.makeText(getContext(), "Цвет коллекции обновлен", Toast.LENGTH_SHORT).show();
             }
@@ -176,32 +184,41 @@ public class ManageCollectionsScreen extends Fragment {
         }
     }
 
-    // Переменная для хранения выбранного цвета в диалоге
-    private String selectedColor;
-
     private void setupColorPickerDialog(RecyclerView colorRecyclerView, View selectedColorView,
                                         TextView selectedColorName, String currentColor) {
-        // Инициализация адаптера цветов
-        ColorAdapter colorAdapter = new ColorAdapter(new ColorAdapter.OnColorClickListener() {
-            @Override
-            public void onColorClick(String color, String colorName) {
-                selectedColor = color;
-                updateSelectedColorDisplay(selectedColorView, selectedColorName, color, colorName);
-            }
-        });
-
-        GridLayoutManager layoutManager = new GridLayoutManager(getContext(), 6);
-        colorRecyclerView.setLayoutManager(layoutManager);
-        colorRecyclerView.setAdapter(colorAdapter);
-
         // Устанавливаем текущий цвет коллекции
         selectedColor = currentColor;
         if (selectedColor == null || selectedColor.isEmpty()) {
             selectedColor = Collection.AVAILABLE_COLORS[0];
         }
 
+        // Используем массив для обхода проблемы final/effectively final
+        final ColorAdapter[] adapterHolder = new ColorAdapter[1];
+
+        ColorAdapter colorAdapter = new ColorAdapter(getContext(), new ColorAdapter.OnColorClickListener() {
+            @Override
+            public void onColorClick(String color, String colorName) {
+                selectedColor = color;
+                // Используем holder для доступа к адаптеру
+                if (adapterHolder[0] != null) {
+                    adapterHolder[0].setSelectedColor(color);
+                }
+                updateSelectedColorDisplay(selectedColorView, selectedColorName, color, colorName);
+            }
+        });
+
+        adapterHolder[0] = colorAdapter;
+
+        GridLayoutManager layoutManager = new GridLayoutManager(getContext(), 6);
+        colorRecyclerView.setLayoutManager(layoutManager);
+        colorRecyclerView.setAdapter(colorAdapter);
+
+        // Устанавливаем выбранный цвет
         colorAdapter.setSelectedColor(selectedColor);
-        updateSelectedColorDisplay(selectedColorView, selectedColorName, selectedColor, colorAdapter.getSelectedColorName());
+
+        // Обновляем отображение начального цвета
+        updateSelectedColorDisplay(selectedColorView, selectedColorName, selectedColor,
+                colorAdapter.getSelectedColorName());
     }
 
     private void updateSelectedColorDisplay(View colorView, TextView colorNameView, String color, String colorName) {

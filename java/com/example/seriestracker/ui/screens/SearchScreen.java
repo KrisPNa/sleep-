@@ -12,6 +12,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -117,13 +118,24 @@ public class SearchScreen extends Fragment {
         seriesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         seriesRecyclerView.setAdapter(seriesAdapter);
 
-        // Настройка адаптера для коллекций
+        // Настройка адаптера для коллекций - ИСПРАВЛЕНО: добавлен onFavoriteClick
         collectionAdapter = new CollectionAdapter(new CollectionAdapter.OnCollectionClickListener() {
             @Override
             public void onCollectionClick(Collection collection) {
                 openCollectionDetailScreen(collection);
             }
-        }, viewModel, getViewLifecycleOwner());
+
+            @Override
+            public void onFavoriteClick(Collection collection) {
+                // Переключаем состояние избранного
+                collection.setFavorite(!collection.isFavorite());
+                viewModel.updateCollection(collection);
+
+                Toast.makeText(getContext(),
+                        collection.isFavorite() ? "Добавлено в избранное" : "Убрано из избранного",
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
 
         collectionsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         collectionsRecyclerView.setAdapter(collectionAdapter);

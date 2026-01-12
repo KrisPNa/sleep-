@@ -34,7 +34,7 @@ public class MainScreen extends Fragment {
     private Button addSeriesButton;
     private Button allSeriesButton;
     private Button allCollectionButton;
-    private Button backupSettingsButton; // НОВАЯ КНОПКА
+    private Button backupSettingsButton;
     private ImageButton searchButton;
     private RecyclerView collectionsRecyclerView;
     private CollectionAdapter collectionAdapter;
@@ -71,7 +71,7 @@ public class MainScreen extends Fragment {
         addSeriesButton = view.findViewById(R.id.addSeriesButton);
         allSeriesButton = view.findViewById(R.id.allSeriesButton);
         allCollectionButton = view.findViewById(R.id.allCollection);
-        backupSettingsButton = view.findViewById(R.id.backupSettingsButton); // Инициализация
+        backupSettingsButton = view.findViewById(R.id.backupSettingsButton);
         searchButton = view.findViewById(R.id.searchButton);
         collectionsRecyclerView = view.findViewById(R.id.collectionsRecyclerView);
         collectionsCount = view.findViewById(R.id.collectionsCount);
@@ -93,7 +93,17 @@ public class MainScreen extends Fragment {
                         .addToBackStack(null)
                         .commit();
             }
-        }, viewModel, getViewLifecycleOwner());
+
+            @Override
+            public void onFavoriteClick(Collection collection) {
+                collection.setFavorite(!collection.isFavorite());
+                viewModel.updateCollection(collection);
+
+                Toast.makeText(getContext(),
+                        collection.isFavorite() ? "Добавлено в избранное" : "Убрано из избранного",
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
 
         GridLayoutManager layoutManager = new GridLayoutManager(getContext(), 2);
         layoutManager.setOrientation(RecyclerView.VERTICAL);
@@ -130,27 +140,36 @@ public class MainScreen extends Fragment {
             openManageCollectionsScreen();
         });
 
-        // Кнопка поиска
         searchButton.setOnClickListener(v -> {
             openSearchScreen();
         });
 
-        // НОВАЯ КНОПКА - Резервное копирование
         backupSettingsButton.setOnClickListener(v -> {
             openBackupSettingsScreen();
         });
     }
 
     private void observeData() {
-        viewModel.getCollectionsWithSeries().observe(getViewLifecycleOwner(), collectionWithSeries -> {
-            if (collectionWithSeries != null && !collectionWithSeries.isEmpty()) {
+        viewModel.getCollectionsWithSeries().observe(getViewLifecycleOwner(), collectionWithSeriesList -> {
+            if (collectionWithSeriesList != null && !collectionWithSeriesList.isEmpty()) {
                 List<Collection> collections = new ArrayList<>();
-                for (CollectionWithSeries cws : collectionWithSeries) {
-                    collections.add(cws.getCollection());
+                for (CollectionWithSeries cws : collectionWithSeriesList) {
+                    // Используем геттер вместо прямого доступа к полю
+                    Collection collection = cws.getCollection();
+
+                    // Получаем количество сериалов через ViewModel
+                    viewModel.getSeriesCountInCollection(collection.getId()).observe(
+                            getViewLifecycleOwner(), count -> {
+                                if (count != null) {
+                                    collection.setSeriesCount(count);
+                                    collectionAdapter.notifyDataSetChanged();
+                                }
+                            });
+
+                    collections.add(collection);
                 }
                 allCollections = collections;
 
-                // Сортируем коллекции
                 List<Collection> sortedCollections = getSortedCollections(allCollections);
                 collectionAdapter.setCollections(sortedCollections);
 
@@ -206,8 +225,6 @@ public class MainScreen extends Fragment {
                 .commit();
     }
 
-    // В MainScreen.java добавьте:
-
     private void openBackupSettingsScreen() {
         try {
             BackupSettingsScreen backupScreen = new BackupSettingsScreen();
@@ -222,6 +239,4 @@ public class MainScreen extends Fragment {
             e.printStackTrace();
         }
     }
-
-
 }

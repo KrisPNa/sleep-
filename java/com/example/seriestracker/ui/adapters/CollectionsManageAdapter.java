@@ -68,13 +68,20 @@ public class CollectionsManageAdapter extends RecyclerView.Adapter<CollectionsMa
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Collection collection = collections.get(position);
 
-        // Устанавливаем цвет коллекции
-        String color = collection.getColor();
-        if (color != null && !color.isEmpty()) {
+        // Устанавливаем цвет коллекции - ИСПРАВЛЕНО: используем getColors() вместо getColor()
+        List<String> colors = collection.getColors();
+        if (colors != null && !colors.isEmpty()) {
             try {
-                // Устанавливаем цвет индикатора
-                holder.colorIndicator.setBackgroundColor(Color.parseColor(color));
+                // Берем первый цвет из списка для индикатора
+                String firstColor = colors.get(0);
+                holder.colorIndicator.setBackgroundColor(Color.parseColor(firstColor));
                 holder.colorIndicator.setVisibility(View.VISIBLE);
+
+                // Если есть несколько цветов, можно показать градиент (опционально)
+                if (colors.size() > 1) {
+                    // Можно добавить градиент, если хотите
+                    // Например: создать GradientDrawable с углом 45 градусов
+                }
             } catch (Exception e) {
                 // Если цвет некорректный, используем цвет по умолчанию
                 holder.colorIndicator.setBackgroundColor(context.getResources().getColor(R.color.primary_blue));

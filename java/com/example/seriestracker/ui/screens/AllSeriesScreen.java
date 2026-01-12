@@ -5,6 +5,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.TextView; // <-- ДОБАВИТЬ этот импорт
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -27,6 +28,7 @@ public class AllSeriesScreen extends Fragment {
     private RecyclerView seriesRecyclerView;
     private SeriesAdapter seriesAdapter;
     private ImageButton backButton;
+    private TextView seriesCountBadge; // <-- ДОБАВИТЬ эту переменную
 
     public AllSeriesScreen() {
         // Required empty public constructor
@@ -46,6 +48,7 @@ public class AllSeriesScreen extends Fragment {
 
         seriesRecyclerView = view.findViewById(R.id.allSeriesRecyclerView);
         backButton = view.findViewById(R.id.backButton);
+        seriesCountBadge = view.findViewById(R.id.seriesCountBadge); // <-- ИНИЦИАЛИЗИРОВАТЬ здесь
 
         // Обработчик кнопки назад
         if (backButton != null) {
@@ -57,11 +60,16 @@ public class AllSeriesScreen extends Fragment {
         // Настройка RecyclerView
         setupRecyclerView();
 
-        // Загрузка всех сериалов (сортировка уже в БД)
+        // Загрузка всех сериалов
         viewModel.getAllSeries().observe(getViewLifecycleOwner(), seriesList -> {
             if (seriesList != null && !seriesList.isEmpty()) {
-                // Сортировка теперь делается в БД, просто обновляем адаптер
+                // Обновляем адаптер
                 seriesAdapter.setSeriesList(seriesList);
+                // ОБНОВЛЯЕМ СЧЕТЧИК
+                seriesCountBadge.setText(String.valueOf(seriesList.size()));
+            } else {
+                // Если список пустой, показываем 0
+                seriesCountBadge.setText("0");
             }
         });
     }
