@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Стиль для CheckBox -->
+    <style name="CheckBoxStyle" parent="Widget.MaterialComponents.CompoundButton.CheckBox">
+        <item name="android:textColor">@color/text_dark</item>
+        <item name="buttonTint">@color/primary_blue</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- Стиль для TextView -->
+    <style name="TextViewDark">
+        <item name="android:textColor">@color/text_dark</item>
+    </style>
+
+    <!-- Основная тема приложения -->
+    <style name="Theme.SeriesTracker" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <!-- Указываем фиксированные цвета -->
+        <item name="android:windowBackground">@color/white</item>
+        <item name="colorSurface">@color/white</item>
+        <item name="colorOnSurface">@color/black</item>
+
+        <!-- Акцентные цвета -->
+        <item name="colorPrimary">@color/primary_blue</item>
+        <item name="colorPrimaryVariant">@color/primary_blue_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+
+        <!-- Отключаем автоматическую темную тему, НО оставляем кликабельность -->
+        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
+
+        <!-- Важно: не отключаем редактирование! -->
+        <item name="android:textColor">@color/text_dark</item>
+        <item name="android:textColorPrimary">@color/text_dark</item>
+        <item name="android:textColorSecondary">@color/text_gray</item>
+
+        <!-- Разрешаем редактирование текста -->
+        <item name="editTextStyle">@style/Widget.App.EditText</item>
+        <item name="android:editTextStyle">@style/Widget.App.EditText</item>
+        <item name="checkboxStyle">@style/CheckBoxStyle</item>
+
+        <!-- Убираем прозрачность окон -->
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+    </style>
+
+    <!-- Стиль для EditText, который разрешает ввод -->
+    <style name="Widget.App.EditText" parent="@android:style/Widget.EditText">
+        <item name="android:textColor">@color/text_dark</item>
+        <item name="android:textColorHint">@color/text_gray</item>
+        <item name="android:background">@drawable/edittext_background</item>
+        <item name="android:focusable">true</item>
+        <item name="android:focusableInTouchMode">true</item>
+        <item name="android:clickable">true</item>
+        <item name="android:enabled">true</item>
+        <item name="android:cursorVisible">true</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:paddingEnd">12dp</item>
+    </style>
+
+</resources>

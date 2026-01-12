@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:paddingBottom="10dp"
+    tools:context=".ui.screens.MainScreen">
+
+    <!-- Заголовок с иконкой поиска -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+
+        android:gravity="center_vertical"
+        android:layout_marginBottom="14dp">
+
+        <TextView
+            android:id="@+id/welcomeText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+
+            android:gravity="center"
+            android:text="Нет, лакорн смотреть"
+            android:textColor="@color/primary_blue"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <!-- Иконка поиска -->
+        <ImageButton
+            android:id="@+id/searchButton"
+            android:layout_width="46dp"
+            android:paddingTop="7dp"
+            android:layout_height="match_parent"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Поиск"
+            android:src="@drawable/ic_baseline_search_24"
+            android:tint="@color/primary_blue" />
+
+    </LinearLayout>
+
+    <!-- Красивый блок с кнопками -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="4dp"
+        app:cardBackgroundColor="@color/background_white"
+        android:layout_marginBottom="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="10dp">
+
+            <!-- Первая строка кнопок -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/createCollectionButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:text="Создать\nколлекцию"
+                    android:textSize="14sp"
+                    android:minHeight="56dp"
+                    android:backgroundTint="@color/primary_blue"
+                    android:textColor="@color/white"
+                    android:drawableTop="@drawable/ic_baseline_add_24"
+                    android:drawablePadding="4dp"
+                    android:gravity="center"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                <Button
+                    android:id="@+id/addSeriesButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:text="Добавить\nсериал"
+                    android:textSize="14sp"
+                    android:minHeight="56dp"
+                    android:backgroundTint="@color/primary_blue"
+                    android:textColor="@color/white"
+                    android:drawableTop="@drawable/ic_baseline_queue_24"
+                    android:drawablePadding="4dp"
+                    android:gravity="center"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+            </LinearLayout>
+
+
+        </LinearLayout>
+
+    </androidx.cardview.widget.CardView>
+
+    <!-- Tabs for switching between collections and series -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="30dp"
+        android:layout_marginBottom="1dp"
+        app:tabIndicatorColor="@color/primary_blue"
+        app:tabSelectedTextColor="@color/primary_blue"
+        app:tabTextColor="@color/text_gray">
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Коллекции" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Сериалы" />
+
+    </com.google.android.material.tabs.TabLayout>
+
+    <!-- ViewPager2 for swipe functionality -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/viewPager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <Button
+        android:id="@+id/backupSettingsButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:text="Резервное копирование"
+        android:textSize="10sp"
+        android:minHeight="10dp"
+        android:backgroundTint="@color/transparent_black"
+        android:textColor="@color/white"
+        android:drawableStart="@drawable/ic_backup"
+        android:drawablePadding="1dp"
+        android:drawableTint="@color/white" />
+
+</LinearLayout>
