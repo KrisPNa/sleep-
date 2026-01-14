@@ -15,6 +15,7 @@ import android.widget.VideoView;
 import com.bumptech.glide.Glide;
 import com.example.seriestracker.R;
 
+import java.io.File;
 import java.util.HashMap;
 
 public class CustomVideoView extends FrameLayout {
@@ -90,6 +91,19 @@ public class CustomVideoView extends FrameLayout {
         }
         Log.d("CustomVideoView", "Setting video URI: " + uri.toString());
 
+        // Проверяем, является ли URI файлом из внутреннего хранилища
+        if ("file".equals(uri.getScheme())) {
+            // Проверяем существование файла
+            File file = new File(uri.getPath());
+            if (!file.exists()) {
+                Log.e("CustomVideoView", "Video file does not exist: " + uri.getPath());
+                // Показываем ошибку
+                thumbnailView.setImageResource(R.drawable.ic_baseline_error_24);
+                thumbnailView.setVisibility(View.VISIBLE);
+                videoView.setVisibility(View.GONE);
+                return;
+            }
+        }
         // Сбрасываем обложку перед началом воспроизведения
         thumbnailView.setVisibility(View.GONE);
         videoView.setVisibility(View.VISIBLE);

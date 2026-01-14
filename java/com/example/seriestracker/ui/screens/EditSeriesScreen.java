@@ -44,6 +44,10 @@ import com.example.seriestracker.ui.adapters.MediaAdapter;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -835,24 +839,49 @@ public class EditSeriesScreen extends Fragment {
         try {
             String fileName = getFileName(uri);
 
-            MediaFile mediaFile = new MediaFile(seriesId,
-                    uri.toString(),
-                    fileType,
-                    fileName);
+            // Копируем файл в внутреннее хранилище приложения
+            Uri copiedUri = copyFileToInternalStorage(uri, fileName);
+            if (copiedUri != null) {
+                MediaFile mediaFile = new MediaFile(seriesId,
+                        copiedUri.toString(),
+                        fileType,
+                        fileName);
 
-            // Получаем путь к файлу
-            String filePath = getRealPathFromURI(uri);
-            if (filePath != null) {
-                mediaFile.setFilePath(filePath);
+                // Получаем путь к файлу
+                String filePath = getRealPathFromURI(copiedUri);
+                if (filePath != null) {
+                    mediaFile.setFilePath(filePath);
+                }
+
+                // Получаем размер файла
+                long fileSize = getFileSize(copiedUri);
+                mediaFile.setFileSize(fileSize);
+
+                // Добавляем медиафайл в коллекцию
+                viewModel.addMediaFile(mediaFile);
+                return true;
+            } else {
+                // Если не удалось скопировать, сохраняем оригинальный URI как fallback
+                MediaFile mediaFile = new MediaFile(seriesId,
+                        uri.toString(),
+                        fileType,
+                        fileName);
+
+
+                // Получаем путь к файлу
+                String filePath = getRealPathFromURI(uri);
+                if (filePath != null) {
+                    mediaFile.setFilePath(filePath);
+                }
+
+                // Получаем размер файла
+                long fileSize = getFileSize(uri);
+                mediaFile.setFileSize(fileSize);
+
+                // Добавляем медиафайл в коллекцию
+                viewModel.addMediaFile(mediaFile);
+                return true;
             }
-
-            // Получаем размер файла
-            long fileSize = getFileSize(uri);
-            mediaFile.setFileSize(fileSize);
-
-            // Добавляем медиафайл в коллекцию
-            viewModel.addMediaFile(mediaFile);
-            return true;
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -904,6 +933,70 @@ public class EditSeriesScreen extends Fragment {
         return fileName;
     }
 
+    /**
+     * Копирует файл из внешнего источника во внутреннее хранилище приложения
+     */
+    private Uri copyFileToInternalStorage(Uri sourceUri, String fileName) {
+        try {
+            // Создаем подкаталог для медиафайлов внутри внутреннего хранилища
+            File mediaDir = new File(requireContext().getFilesDir(), "media");
+            if (!mediaDir.exists()) {
+                mediaDir.mkdirs();
+            }
+
+            // Создаем уникальное имя файла
+            String uniqueFileName = generateUniqueFileName(fileName, mediaDir);
+            File destinationFile = new File(mediaDir, uniqueFileName);
+
+            // Копируем содержимое из источника в назначение
+            try (InputStream inputStream = requireContext().getContentResolver().openInputStream(sourceUri);
+                 FileOutputStream outputStream = new FileOutputStream(destinationFile)) {
+
+                if (inputStream == null) {
+                    return null;
+                }
+
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                outputStream.flush();
+
+                // Возвращаем URI для внутреннего файла
+                return Uri.fromFile(destinationFile);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Генерирует уникальное имя файла, если файл с таким именем уже существует
+     */
+    private String generateUniqueFileName(String originalFileName, File directory) {
+        String nameWithoutExtension = originalFileName;
+        String extension = "";
+
+        int dotIndex = originalFileName.lastIndexOf('.');
+        if (dotIndex > 0) {
+            nameWithoutExtension = originalFileName.substring(0, dotIndex);
+            extension = originalFileName.substring(dotIndex);
+        }
+
+        String uniqueFileName = originalFileName;
+        int counter = 1;
+        File testFile = new File(directory, uniqueFileName);
+
+        while (testFile.exists()) {
+            uniqueFileName = nameWithoutExtension + "_" + counter + extension;
+            testFile = new File(directory, uniqueFileName);
+            counter++;
+        }
+
+        return uniqueFileName;
+    }
     private long getFileSize(Uri uri) {
         long size = 0;
 

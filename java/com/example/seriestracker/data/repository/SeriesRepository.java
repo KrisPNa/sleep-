@@ -2,6 +2,7 @@ package com.example.seriestracker.data.repository;
 
 import android.app.Application;
 import android.content.Context;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -15,6 +16,7 @@ import com.example.seriestracker.data.entities.MediaFile;
 import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.data.entities.SeriesCollectionCrossRef;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -357,11 +359,53 @@ public class SeriesRepository {
     }
 
     public void deleteMediaFile(long mediaId) {
-        executor.execute(() -> seriesDao.deleteMediaFile(mediaId));
+        executor.execute(() -> {
+            // Сначала получаем информацию о медиафайле перед удалением
+            MediaFile mediaFile = seriesDao.getMediaFileSync(mediaId);
+            seriesDao.deleteMediaFile(mediaId);
+
+            // Удаляем файл из внутреннего хранилища, если он был скопирован туда
+            if (mediaFile != null && mediaFile.getFileUri() != null) {
+                try {
+                    Uri fileUri = Uri.parse(mediaFile.getFileUri());
+                    if ("file".equals(fileUri.getScheme())) {
+                        File file = new File(fileUri.getPath());
+                        if (file.exists()) {
+                            file.delete();
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        });
     }
 
     public void deleteAllMediaFilesForSeries(long seriesId) {
-        executor.execute(() -> seriesDao.deleteAllMediaFilesForSeries(seriesId));
+        executor.execute(() -> {
+            // Сначала получаем все медиафайлы для серии
+            List<MediaFile> mediaFiles = seriesDao.getMediaFilesForSeriesSync(seriesId);
+            seriesDao.deleteAllMediaFilesForSeries(seriesId);
+
+            // Удаляем соответствующие файлы из внутреннего хранилища
+            if (mediaFiles != null) {
+                for (MediaFile mediaFile : mediaFiles) {
+                    if (mediaFile.getFileUri() != null) {
+                        try {
+                            Uri fileUri = Uri.parse(mediaFile.getFileUri());
+                            if ("file".equals(fileUri.getScheme())) {
+                                File file = new File(fileUri.getPath());
+                                if (file.exists()) {
+                                    file.delete();
+                                }
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        });
     }
 
     // Синхронные методы для резервного копирования

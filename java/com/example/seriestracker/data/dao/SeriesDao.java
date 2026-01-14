@@ -196,4 +196,8 @@ public interface SeriesDao {
 
     @Query("SELECT * FROM media_files")
     List<MediaFile> getAllMediaFilesSync();
+
+    @Query("SELECT * FROM media_files WHERE id = :mediaId")
+    MediaFile getMediaFileSync(long mediaId);
+
 }

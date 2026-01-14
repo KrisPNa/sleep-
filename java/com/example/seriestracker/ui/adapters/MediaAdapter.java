@@ -77,11 +77,18 @@ public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaViewHol
         public void bind(MediaFile mediaFile, int position, OnMediaClickListener listener) {
             // Загружаем превью
             if (mediaFile.getFileUri() != null && !mediaFile.getFileUri().isEmpty()) {
-                Glide.with(itemView.getContext())
-                        .load(mediaFile.getFileUri())
-                        .placeholder(R.drawable.ic_baseline_image_24)
-                        .centerCrop()
-                        .into(mediaImageView);
+                try {
+                    Glide.with(itemView.getContext())
+                            .load(mediaFile.getFileUri())
+                            .placeholder(R.drawable.ic_baseline_image_24)
+                            .centerCrop()
+                            .error(R.drawable.ic_baseline_image_24) // Добавляем ошибку плейсхолдера
+                            .into(mediaImageView);
+                } catch (Exception e) {
+                    // Если возникла ошибка при загрузке, показываем плейсхолдер
+                    mediaImageView.setImageResource(R.drawable.ic_baseline_image_24);
+                    e.printStackTrace();
+                }
             } else {
                 mediaImageView.setImageResource(R.drawable.ic_baseline_image_24);
             }

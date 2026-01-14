@@ -25,6 +25,7 @@ import com.example.seriestracker.R;
 import com.example.seriestracker.data.entities.MediaFile;
 import com.example.seriestracker.ui.custom.CustomVideoView;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -249,6 +250,18 @@ public class MediaViewerFragment extends Fragment {
                     // Устанавливаем обложку
                     customVideoView.setVideoThumbnail(videoUri);
 
+                    // Проверяем, является ли URI файлом из внутреннего хранилища
+                    if ("file".equals(uri.getScheme())) {
+                        // Проверяем существование файла
+                        File file = new File(uri.getPath());
+                        if (!file.exists()) {
+                            Log.e("MediaViewer", "Video file does not exist: " + uri.getPath());
+                            Toast.makeText(getContext(), "Файл видео не найден", Toast.LENGTH_SHORT).show();
+                            progressBar.setVisibility(View.GONE);
+                            return;
+                        }
+                    }
+
                     // Устанавливаем URI
                     customVideoView.setVideoURI(uri);
 
@@ -270,9 +283,16 @@ public class MediaViewerFragment extends Fragment {
             videoControls.setVisibility(View.GONE);
             imageView.setVisibility(View.VISIBLE);
 
-            Glide.with(this)
-                    .load(Uri.parse(mediaFile.getFileUri()))
-                    .into(imageView);
+            try {
+                Glide.with(this)
+                        .load(Uri.parse(mediaFile.getFileUri()))
+                        .error(R.drawable.ic_baseline_image_24) // Добавляем ошибку плейсхолдера
+                        .into(imageView);
+            } catch (Exception e) {
+                // Если возникла ошибка при загрузке, показываем плейсхолдер
+                imageView.setImageResource(R.drawable.ic_baseline_image_24);
+                Log.e("MediaViewer", "Error loading image: " + e.getMessage(), e);
+            }
         }
     }
 
