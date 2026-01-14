@@ -28,8 +28,26 @@
             app:showAsAction="never" />
 
         <item
-            android:id="@+id/sort_by_status"
-            android:title="По статусу"
+            android:id="@+id/sort_by_status_watching"
+            android:title="Смотрю"
+            android:checkable="true"
+            app:showAsAction="never" />
+
+        <item
+            android:id="@+id/sort_by_status_dropped"
+            android:title="Брошено"
+            android:checkable="true"
+            app:showAsAction="never" />
+
+        <item
+            android:id="@+id/sort_by_status_planned"
+            android:title="Планирую"
+            android:checkable="true"
+            app:showAsAction="never" />
+
+        <item
+            android:id="@+id/sort_by_status_completed"
+            android:title="Посмотрел"
             android:checkable="true"
             app:showAsAction="never" />
     </group>
