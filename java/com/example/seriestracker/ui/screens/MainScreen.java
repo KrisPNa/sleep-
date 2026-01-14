@@ -93,6 +93,16 @@ public class MainScreen extends Fragment {
         setupEventListeners();
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        // При возвращении в MainScreen из других фрагментов, если был активен контекстный поиск,
+        // нужно его закрыть, чтобы не оставаться на экране поиска
+        if (isContextualSearchActive) {
+            closeContextualSearch();
+        }
+    }
+
     private void toggleButtons() {
         if (isButtonsVisible) {
             hideButtons();
