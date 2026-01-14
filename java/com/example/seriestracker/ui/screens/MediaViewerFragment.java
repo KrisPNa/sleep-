@@ -12,6 +12,7 @@ import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.SeekBar;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -41,11 +42,14 @@ public class MediaViewerFragment extends Fragment {
     private ProgressBar progressBar;
     private TextView fileNameTextView;
     private LinearLayout videoControls;
+    private SeekBar seekBar;
+
 
     private List<MediaFile> mediaFiles;
     private int currentPosition;
     private boolean isVideoPlaying = false;
     private Handler handler = new Handler();
+    private Runnable updateSeekBarRunnable;
     private Runnable hideControlsRunnable;
 
     private OnSwipeTouchListener swipeListener;
@@ -88,6 +92,7 @@ public class MediaViewerFragment extends Fragment {
         progressBar = view.findViewById(R.id.progressBar);
         fileNameTextView = view.findViewById(R.id.fileNameTextView);
         videoControls = view.findViewById(R.id.videoControls);
+        seekBar = view.findViewById(R.id.seekBar);
 
         closeButton.setOnClickListener(v -> {
             if (customVideoView.isPlaying()) {
@@ -102,18 +107,45 @@ public class MediaViewerFragment extends Fragment {
                 playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
                 isVideoPlaying = false;
                 showControls();
+                removeUpdateSeekBarCallback(); // Остановить обновление бегунка при паузе
             } else {
                 if (customVideoView.getCurrentMediaPlayer() != null) {
                     customVideoView.start();
                     playPauseButton.setImageResource(R.drawable.ic_baseline_pause_24);
                     isVideoPlaying = true;
                     hideControlsDelayed();
+                    startUpdateSeekBarCallback(); // Начать обновление бегунка при воспроизведении
                 } else {
                     Toast.makeText(getContext(), "Видео загружается...", Toast.LENGTH_SHORT).show();
                 }
             }
         });
 
+        // Установка обработчика для SeekBar
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && customVideoView.getCurrentMediaPlayer() != null) {
+                    customVideoView.seekTo(progress);
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                // При начале перетаскивания бегунка - приостанавливаем воспроизведение
+                if (customVideoView.isPlaying()) {
+                    customVideoView.pause();
+                }
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                // При завершении перетаскивания - возобновляем воспроизведение
+                if (!customVideoView.isPlaying() && isVideoPlaying) {
+                    customVideoView.start();
+                }
+            }
+        });
         customVideoView.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
             @Override
             public void onPrepared(MediaPlayer mp) {
@@ -122,8 +154,16 @@ public class MediaViewerFragment extends Fragment {
                 customVideoView.setProgressBarVisible(false);
                 playPauseButton.setVisibility(View.VISIBLE);
                 playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
+
+                // Настройка SeekBar
+                seekBar.setMax(mp.getDuration());
+                seekBar.setProgress(0);
+
                 isVideoPlaying = false;
                 showControls();
+
+                // Начинаем обновление бегунка при воспроизведении
+                startUpdateSeekBarCallback();
             }
         });
 
@@ -154,6 +194,7 @@ public class MediaViewerFragment extends Fragment {
                 playPauseButton.setImageResource(R.drawable.ic_baseline_replay_24);
                 isVideoPlaying = false;
                 showControls();
+                removeUpdateSeekBarCallback(); // Остановить обновление бегунка при завершении видео
             }
         });
 
@@ -267,6 +308,9 @@ public class MediaViewerFragment extends Fragment {
         if (mediaFiles == null || mediaFiles.isEmpty() || position < 0 || position >= mediaFiles.size()) {
             return;
         }
+
+        // Остановить обновление бегунка для предыдущего видео
+        removeUpdateSeekBarCallback();
 
         MediaFile mediaFile = mediaFiles.get(position);
         currentPosition = position;
@@ -387,6 +431,33 @@ public class MediaViewerFragment extends Fragment {
         handler.postDelayed(hideControlsRunnable, 3000);
     }
 
+    private void startUpdateSeekBarCallback() {
+        if (updateSeekBarRunnable == null) {
+            updateSeekBarRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    if (customVideoView != null && customVideoView.getCurrentMediaPlayer() != null && isVideoPlaying) {
+                        int currentPosition = customVideoView.getCurrentPosition();
+                        seekBar.setProgress(currentPosition);
+
+                        // Продолжаем обновлять бегунок каждые 1000 мс
+                        handler.postDelayed(this, 1000);
+                    }
+                }
+            };
+        }
+
+        // Убедимся, что предыдущий runnable удален перед запуском нового
+        removeUpdateSeekBarCallback();
+        handler.post(updateSeekBarRunnable);
+    }
+
+    private void removeUpdateSeekBarCallback() {
+        if (updateSeekBarRunnable != null) {
+            handler.removeCallbacks(updateSeekBarRunnable);
+        }
+    }
+
     @Override
     public void onPause() {
         super.onPause();
@@ -394,6 +465,9 @@ public class MediaViewerFragment extends Fragment {
         if (customVideoView.isPlaying()) {
             customVideoView.pause();
         }
+
+        // Остановить обновление бегунка при паузе фрагмента
+        removeUpdateSeekBarCallback();
     }
 
     @Override
@@ -403,6 +477,9 @@ public class MediaViewerFragment extends Fragment {
         if (customVideoView.isPlaying()) {
             customVideoView.stopPlayback();
         }
+        // Остановить обновление бегунка при уничтожении фрагмента
+        removeUpdateSeekBarCallback();
+
         if (hideControlsRunnable != null) {
             handler.removeCallbacks(hideControlsRunnable);
         }
