@@ -231,6 +231,10 @@ public class MainScreen extends Fragment {
                     .commit();
         });
 
+        // Обработчик клика для текста "Нет, лакорн смотреть" - показывает/скрывает кнопки
+        welcomeText.setOnClickListener(v -> {
+            toggleButtons();
+        });
         searchButton.setOnClickListener(v -> {
             hideButtons(); // Скрываем кнопки при открытии поиска
             // Открываем контекстный поиск вместо полноэкранного
