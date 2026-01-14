@@ -9,6 +9,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
@@ -613,7 +614,7 @@ public class EditSeriesScreen extends Fragment {
     }
 
     private void saveSeries() {
-        if (series == null) return;
+        if (series == null || !isAdded()) return; // Проверка isAdded()
 
         String newTitle = titleEditText.getText().toString().trim();
         if (newTitle.isEmpty()) {
@@ -621,9 +622,16 @@ public class EditSeriesScreen extends Fragment {
             return;
         }
 
+        // Сохраняем ссылку на ViewModel локально
+        SeriesViewModel localViewModel = viewModel;
+        if (localViewModel == null) return;
+
         // Проверяем, изменилось ли название
         if (!newTitle.equals(series.getTitle())) {
-            viewModel.doesSeriesExist(newTitle).observe(getViewLifecycleOwner(), exists -> {
+            // Создаем временный LiveData наблюдатель
+            localViewModel.doesSeriesExist(newTitle).observe(getViewLifecycleOwner(), exists -> {
+                if (!isAdded() || getContext() == null) return; // Проверка
+
                 if (exists != null && exists) {
                     Toast.makeText(getContext(),
                             "Сериал \"" + newTitle + "\" уже существует",
@@ -640,6 +648,8 @@ public class EditSeriesScreen extends Fragment {
     }
 
     private void updateSeriesData(String title) {
+        if (!isAdded() || getContext() == null || series == null) return;
+
         // 1. Обновляем данные сериала
         series.setTitle(title);
         series.setNotes(notesEditText.getText().toString().trim());
@@ -667,7 +677,9 @@ public class EditSeriesScreen extends Fragment {
         series.setIsFavorite(favoriteCheckBox.isChecked());
 
         // 2. Сохраняем сериал в БД
-        viewModel.updateSeries(series);
+        if (viewModel != null) {
+            viewModel.updateSeries(series);
+        }
 
         // 3. Создаем список ID выбранных коллекций
         List<Long> selectedCollectionIds = new ArrayList<>();
@@ -676,13 +688,21 @@ public class EditSeriesScreen extends Fragment {
         }
 
         // 4. Обновляем связи с коллекциями
-        viewModel.updateSeriesCollections(series.getId(), selectedCollectionIds);
+        if (viewModel != null) {
+            viewModel.updateSeriesCollections(series.getId(), selectedCollectionIds);
+        }
 
         // 5. Показываем сообщение об успехе
         Toast.makeText(getContext(), "Сериал обновлен", Toast.LENGTH_SHORT).show();
 
-        // 6. Возвращаемся назад
-        requireActivity().getSupportFragmentManager().popBackStack();
+        // 6. Возвращаемся назад БЕЗ ЗАДЕРЖКИ
+        if (isAdded() && getActivity() != null) {
+            requireActivity().runOnUiThread(() -> {
+                if (isAdded()) {
+                    requireActivity().getSupportFragmentManager().popBackStack();
+                }
+            });
+        }
     }
 
     @Override
@@ -1017,10 +1037,22 @@ public class EditSeriesScreen extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        // Очищаем наблюдатели
+        // Очищаем все наблюдатели
         if (viewModel != null && series != null) {
+            viewModel.getSeriesById(series.getId()).removeObservers(getViewLifecycleOwner());
+            viewModel.getAllCollections().removeObservers(getViewLifecycleOwner());
             viewModel.getCollectionsForSeries(series.getId()).removeObservers(getViewLifecycleOwner());
             viewModel.getMediaFilesForSeries(series.getId()).removeObservers(getViewLifecycleOwner());
+            viewModel.doesSeriesExist("").removeObservers(getViewLifecycleOwner());
         }
+
+        // Очищаем ссылки на UI элементы
+        titleEditText = null;
+        notesEditText = null;
+        genreEditText = null;
+        seasonsEditText = null;
+        episodesEditText = null;
+        seriesImageView = null;
+        // ... остальные UI элементы ...
     }
 }
