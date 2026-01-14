@@ -40,6 +40,7 @@ public class AllSeriesScreen extends Fragment {
     private TextView seriesCountBadge;
     private List<Series> allSeries = new ArrayList<>();
     private int currentSortOrder = 0;
+    private String currentStatusFilter = null; // Для хранения выбранного статуса для сортировки
 
     public AllSeriesScreen() {
         // Required empty public constructor
@@ -143,8 +144,17 @@ public class AllSeriesScreen extends Fragment {
             case 3: // по количеству серий (убыв.)
                 menu.findItem(R.id.sort_by_episodes_desc).setChecked(true);
                 break;
-            case 4: // по статусу
-                menu.findItem(R.id.sort_by_status).setChecked(true);
+            case 4: // по статусу "Смотрю"
+                menu.findItem(R.id.sort_by_status_watching).setChecked(true);
+                break;
+            case 5: // по статусу "Брошено"
+                menu.findItem(R.id.sort_by_status_dropped).setChecked(true);
+                break;
+            case 6: // по статусу "Планирую"
+                menu.findItem(R.id.sort_by_status_planned).setChecked(true);
+                break;
+            case 7: // по статусу "Посмотрел"
+                menu.findItem(R.id.sort_by_status_completed).setChecked(true);
                 break;
         }
 
@@ -156,18 +166,35 @@ public class AllSeriesScreen extends Fragment {
                 if (itemId == R.id.sort_by_name_asc) {
                     currentSortOrder = 0;
                     item.setChecked(true);
+                    currentStatusFilter = null;
                 } else if (itemId == R.id.sort_by_name_desc) {
                     currentSortOrder = 1;
                     item.setChecked(true);
+                    currentStatusFilter = null;
                 } else if (itemId == R.id.sort_by_episodes_asc) {
                     currentSortOrder = 2;
                     item.setChecked(true);
+                    currentStatusFilter = null;
                 } else if (itemId == R.id.sort_by_episodes_desc) {
                     currentSortOrder = 3;
                     item.setChecked(true);
-                } else if (itemId == R.id.sort_by_status) {
+                    currentStatusFilter = null;
+                } else if (itemId == R.id.sort_by_status_watching) {
                     currentSortOrder = 4;
                     item.setChecked(true);
+                    currentStatusFilter = "watching";
+                } else if (itemId == R.id.sort_by_status_dropped) {
+                    currentSortOrder = 5;
+                    item.setChecked(true);
+                    currentStatusFilter = "dropped";
+                } else if (itemId == R.id.sort_by_status_planned) {
+                    currentSortOrder = 6;
+                    item.setChecked(true);
+                    currentStatusFilter = "planned";
+                } else if (itemId == R.id.sort_by_status_completed) {
+                    currentSortOrder = 7;
+                    item.setChecked(true);
+                    currentStatusFilter = "completed";
                 } else {
                     return false;
                 }
@@ -222,17 +249,35 @@ public class AllSeriesScreen extends Fragment {
                     }
                 });
                 break;
-            case 4: // по статусу
+            case 4: // по статусу "Смотрю"
+            case 5: // по статусу "Брошено"
+            case 6: // по статусу "Планирую"
+            case 7: // по статусу "Посмотрел"
                 Collections.sort(sorted, new Comparator<Series>() {
                     @Override
                     public int compare(Series s1, Series s2) {
-                        // Сначала сортируем по статусу
-                        int statusComparison = getStatusPriority(s1.getStatus()).compareTo(getStatusPriority(s2.getStatus()));
-                        if (statusComparison != 0) {
-                            return statusComparison;
+                        // Если выбран конкретный статус для сортировки
+                        if (currentStatusFilter != null) {
+                            boolean s1IsTargetStatus = s1.getStatus().equals(currentStatusFilter);
+                            boolean s2IsTargetStatus = s2.getStatus().equals(currentStatusFilter);
+
+                            // Если только один из сериалов имеет целевой статус, помещаем его первым
+                            if (s1IsTargetStatus && !s2IsTargetStatus) {
+                                return -1;
+                            } else if (!s1IsTargetStatus && s2IsTargetStatus) {
+                                return 1;
+                            }
+                            // Если оба имеют или не имеют целевой статус, сортируем по названию
+                            return s1.getTitle().compareToIgnoreCase(s2.getTitle());
+                        } else {
+                            // Стандартная сортировка по статусу
+                            int statusComparison = getStatusPriority(s1.getStatus()).compareTo(getStatusPriority(s2.getStatus()));
+                            if (statusComparison != 0) {
+                                return statusComparison;
+                            }
+                            // Если статус одинаковый, сортируем по названию
+                            return s1.getTitle().compareToIgnoreCase(s2.getTitle());
                         }
-                        // Если статус одинаковый, сортируем по названию
-                        return s1.getTitle().compareToIgnoreCase(s2.getTitle());
                     }
 
                     private Integer getStatusPriority(String status) {
