@@ -18,7 +18,7 @@ import com.example.seriestracker.data.entities.SeriesCollectionCrossRef;
 
 @Database(
         entities = {Series.class, Collection.class, SeriesCollectionCrossRef.class,  MediaFile.class},
-        version = 8,
+        version = 9,
         exportSchema = false
 )
 public abstract class SeriesDatabase extends RoomDatabase {

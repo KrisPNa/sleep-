@@ -1,11 +1,16 @@
 package com.example.seriestracker.ui.screens;
 
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -14,13 +19,24 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.example.seriestracker.R;
+import com.example.seriestracker.data.entities.Collection;
+import com.example.seriestracker.data.entities.Series;
+import com.example.seriestracker.ui.adapters.CollectionAdapter;
 import com.example.seriestracker.ui.adapters.MainPagerAdapter;
+import com.example.seriestracker.ui.adapters.SeriesAdapter;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class MainScreen extends Fragment {
 
@@ -34,9 +50,27 @@ public class MainScreen extends Fragment {
     private TabLayout tabLayout;
     private View buttonsCardView;
     private View overlayBackground;
-    private LinearLayout headerLayout;
+    private FrameLayout headerLayout;
+
+    // Элементы для контекстного поиска
+    private LinearLayout searchContainer;
+    private EditText contextualSearchEditText;
+    private ImageView clearContextualSearchButton;
+
+    // Элементы для отображения результатов поиска
+    private LinearLayout searchResultsContainer;
+    private TextView collectionsSearchTitle;
+    private RecyclerView collectionsSearchRecyclerView;
+    private TextView seriesSearchTitle;
+    private RecyclerView seriesSearchRecyclerView;
+    private TextView noSearchResultsText;
+
+    // Адаптеры для результатов поиска
+    private CollectionAdapter collectionsSearchAdapter;
+    private SeriesAdapter seriesSearchAdapter;
 
     private boolean isButtonsVisible = false;
+    private boolean isContextualSearchActive = false;
 
     public MainScreen() {
         // Required empty public constructor
@@ -133,7 +167,20 @@ public class MainScreen extends Fragment {
         tabLayout = view.findViewById(R.id.tabLayout);
         buttonsCardView = view.findViewById(R.id.buttonsCardView);
         overlayBackground = view.findViewById(R.id.overlayBackground);
-        headerLayout = view.findViewById(R.id.headerLayout);
+        headerLayout = (FrameLayout) view.findViewById(R.id.headerLayout);
+
+        // Инициализация элементов контекстного поиска
+        searchContainer = view.findViewById(R.id.searchContainer);
+        contextualSearchEditText = view.findViewById(R.id.contextualSearchEditText);
+        clearContextualSearchButton = view.findViewById(R.id.clearContextualSearchButton);
+
+        // Инициализация элементов для отображения результатов поиска
+        searchResultsContainer = view.findViewById(R.id.searchResultsContainer);
+        collectionsSearchTitle = view.findViewById(R.id.collectionsSearchTitle);
+        collectionsSearchRecyclerView = view.findViewById(R.id.collectionsSearchRecyclerView);
+        seriesSearchTitle = view.findViewById(R.id.seriesSearchTitle);
+        seriesSearchRecyclerView = view.findViewById(R.id.seriesSearchRecyclerView);
+        noSearchResultsText = view.findViewById(R.id.noSearchResultsText);
 
         // Изначально скрываем кнопки
         buttonsCardView.setVisibility(View.GONE);
@@ -160,10 +207,6 @@ public class MainScreen extends Fragment {
     }
 
     private void setupEventListeners() {
-        // Клик по заголовку - показ/скрытие кнопок
-        welcomeText.setOnClickListener(v -> {
-            toggleButtons();
-        });
 
         // Клик по затемненному фону - скрытие кнопок
         overlayBackground.setOnClickListener(v -> {
@@ -190,7 +233,14 @@ public class MainScreen extends Fragment {
 
         searchButton.setOnClickListener(v -> {
             hideButtons(); // Скрываем кнопки при открытии поиска
-            openSearchScreen();
+            // Открываем контекстный поиск вместо полноэкранного
+            if (isContextualSearchActive) {
+                // Если активен контекстный поиск, закрываем его
+                closeContextualSearch();
+            } else {
+                // Открываем контекстный поиск
+                openContextualSearch();
+            }
         });
 
         backupSettingsButton.setOnClickListener(v -> {
@@ -204,16 +254,281 @@ public class MainScreen extends Fragment {
             public void onPageSelected(int position) {
                 super.onPageSelected(position);
                 hideButtons();
+                // При переключении вкладок, если активен контекстный поиск, закрываем его
+                if (isContextualSearchActive) {
+                    closeContextualSearch();
+                }
             }
+        });
+        // Обработка контекстного поиска
+        setupContextualSearch();
+    }
+
+    private void setupContextualSearch() {
+        // Инициализируем адаптеры для результатов поиска
+        initializeSearchAdapters();
+
+        // Добавляем слушатель для текстового поля контекстного поиска
+        contextualSearchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Показываем/скрываем кнопку очистки
+                clearContextualSearchButton.setVisibility(s.length() > 0 ? View.VISIBLE : View.GONE);
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                // Выполняем поиск в зависимости от текущей вкладки
+                performContextualSearch(s.toString());
+            }
+        });
+
+        // Кнопка очистки контекстного поиска
+        clearContextualSearchButton.setOnClickListener(v -> {
+            contextualSearchEditText.setText("");
+            contextualSearchEditText.requestFocus();
         });
     }
 
-    private void openSearchScreen() {
-        SearchScreen searchScreen = new SearchScreen();
-        requireActivity().getSupportFragmentManager().beginTransaction()
-                .replace(R.id.fragment_container, searchScreen)
-                .addToBackStack(null)
-                .commit();
+    private void initializeSearchAdapters() {
+        // Настройка адаптера для поиска коллекций
+        collectionsSearchAdapter = new CollectionAdapter(new CollectionAdapter.OnCollectionClickListener() {
+            @Override
+            public void onCollectionClick(Collection collection) {
+                // Открытие деталей коллекции
+                openCollectionDetailScreen(collection);
+            }
+
+            @Override
+            public void onFavoriteClick(Collection collection) {
+                // Переключение состояния избранного
+                collection.setFavorite(!collection.isFavorite());
+                viewModel.updateCollection(collection);
+
+                Toast.makeText(getContext(),
+                        collection.isFavorite() ? "Добавлено в избранное" : "Убрано из избранного",
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        collectionsSearchRecyclerView.setLayoutManager(new LinearLayoutManager(getContext(), LinearLayoutManager.VERTICAL, false));
+        collectionsSearchRecyclerView.setAdapter(collectionsSearchAdapter);
+
+        // Настройка адаптера для поиска сериалов
+        seriesSearchAdapter = new SeriesAdapter(new SeriesAdapter.OnSeriesClickListener() {
+            @Override
+            public void onSeriesClick(Series series) {
+                openEditSeriesScreen(series);
+            }
+
+            @Override
+            public void onWatchedToggle(Series series, boolean isWatched) {
+                viewModel.toggleWatchedStatus(series.getId(), isWatched);
+            }
+
+            @Override
+            public void onFavoriteToggle(Series series, boolean isFavorite) {
+                viewModel.toggleFavoriteStatus(series.getId(), isFavorite);
+            }
+        });
+
+        seriesSearchRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        seriesSearchRecyclerView.setAdapter(seriesSearchAdapter);
+    }
+
+    private void openContextualSearch() {
+        isContextualSearchActive = true;
+        searchContainer.setVisibility(View.VISIBLE);
+
+        // Анимация появления
+        searchContainer.animate()
+                .alpha(1f)
+                .setDuration(200)
+                .start();
+
+        // Показываем клавиатуру и устанавливаем фокус
+        contextualSearchEditText.requestFocus();
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(contextualSearchEditText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
+    private void closeContextualSearch() {
+        isContextualSearchActive = false;
+
+        // Анимация исчезновения
+        searchContainer.animate()
+                .alpha(0f)
+                .setDuration(200)
+                .withEndAction(() -> {
+                    searchContainer.setVisibility(View.GONE);
+                    contextualSearchEditText.setText("");
+                })
+                .start();
+
+        // Скрываем клавиатуру
+        android.view.inputmethod.InputMethodManager imm =
+                (android.view.inputmethod.InputMethodManager) getContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.hideSoftInputFromWindow(contextualSearchEditText.getWindowToken(), 0);
+        }
+
+        // Сбрасываем флаг
+        // Метод resetSearchFlag() не существует, убрал вызов
+
+        // Скрываем результаты поиска и показываем нормальный интерфейс
+        hideSearchResults();
+    }
+
+    private void performContextualSearch(String query) {
+        if (query.trim().isEmpty()) {
+            // Если запрос пустой, скрываем результаты поиска и показываем нормальный интерфейс
+            hideSearchResults();
+            return;
+        }
+
+        // Показываем контейнер с результатами поиска
+        showSearchResults();
+
+        // Получаем текущую позицию в ViewPager
+        int currentPosition = viewPager.getCurrentItem();
+
+        // Выполняем поиск в отдельном потоке, чтобы не нагружать основной поток
+        viewModel.getAllCollections().observe(this, collections -> {
+            viewModel.getAllSeries().observe(this, seriesList -> {
+                // Оба списка получены, теперь выполняем фильтрацию
+
+                List<Collection> filteredCollections = new ArrayList<>();
+                List<Series> filteredSeries = new ArrayList<>();
+
+                // Если находимся на вкладке коллекций - показываем ТОЛЬКО коллекции
+                if (currentPosition == MainPagerAdapter.COLLECTIONS_FRAGMENT_POSITION) {
+                    if (collections != null) {
+                        // Сначала фильтруем коллекции
+                        for (Collection collection : collections) {
+                            if (matchesCollection(collection, query)) {
+                                filteredCollections.add(collection);
+                            }
+                        }
+
+                        // Теперь для каждой отфильтрованной коллекции нужно посчитать сериалы
+                        // Получаем список всех сериалов и считаем, какие принадлежат каждой коллекции
+                        if (seriesList != null) {
+                            // Создаем карту collectionId -> количество сериалов
+                            Map<Long, Integer> seriesCountMap = new HashMap<>();
+
+                            for (Series series : seriesList) {
+                                if (series.getCollectionId() > 0) {
+                                    long collectionId = series.getCollectionId();
+                                    seriesCountMap.put(collectionId,
+                                            seriesCountMap.getOrDefault(collectionId, 0) + 1);
+                                }
+                            }
+
+                            // Устанавливаем количество сериалов для каждой коллекции
+                            for (Collection collection : filteredCollections) {
+                                int seriesCount = seriesCountMap.getOrDefault(collection.getId(), 0);
+                                collection.setSeriesCount(seriesCount);
+                            }
+                        }
+                    }
+                    // На вкладке коллекций НЕ показываем сериалы вообще
+                    filteredSeries = new ArrayList<>();
+
+                    // Обновляем UI
+                    if (getContext() != null) {
+                        collectionsSearchAdapter.setCollections(filteredCollections);
+                        seriesSearchAdapter.setSeriesList(filteredSeries);
+
+                        // Показываем/скрываем заголовки и RecyclerView
+                        collectionsSearchTitle.setVisibility(filteredCollections.isEmpty() ? View.GONE : View.VISIBLE);
+                        collectionsSearchRecyclerView.setVisibility(filteredCollections.isEmpty() ? View.GONE : View.VISIBLE);
+
+                        // Скрываем заголовок и список сериалов (так как мы на вкладке коллекций)
+                        seriesSearchTitle.setVisibility(View.GONE);
+                        seriesSearchRecyclerView.setVisibility(View.GONE);
+
+                        // Показываем сообщение "Ничего не найдено", если коллекций не найдено
+                        noSearchResultsText.setVisibility(filteredCollections.isEmpty() ? View.VISIBLE : View.GONE);
+                    }
+                }
+                // Если находимся на вкладке сериалов - показываем ТОЛЬКО сериалы
+                else if (currentPosition == MainPagerAdapter.SERIES_FRAGMENT_POSITION) {
+                    if (seriesList != null) {
+                        for (Series series : seriesList) {
+                            if (matchesSeries(series, query)) {
+                                filteredSeries.add(series);
+                            }
+                        }
+                    }
+                    // На вкладке сериалов НЕ показываем коллекции вообще
+                    filteredCollections = new ArrayList<>();
+
+                    // Обновляем UI
+                    if (getContext() != null) {
+                        collectionsSearchAdapter.setCollections(filteredCollections);
+                        seriesSearchAdapter.setSeriesList(filteredSeries);
+
+                        // Показываем/скрываем заголовки и RecyclerView
+                        seriesSearchTitle.setVisibility(filteredSeries.isEmpty() ? View.GONE : View.VISIBLE);
+                        seriesSearchRecyclerView.setVisibility(filteredSeries.isEmpty() ? View.GONE : View.VISIBLE);
+
+                        // Скрываем заголовок и список коллекций (так как мы на вкладке сериалов)
+                        collectionsSearchTitle.setVisibility(View.GONE);
+                        collectionsSearchRecyclerView.setVisibility(View.GONE);
+
+                        // Показываем сообщение "Ничего не найдено", если сериалов не найдено
+                        noSearchResultsText.setVisibility(filteredSeries.isEmpty() ? View.VISIBLE : View.GONE);
+                    }
+                }
+            });
+        });
+    }
+
+    private boolean matchesSeries(Series series, String query) {
+        String lowerQuery = query.toLowerCase();
+        if (series.getTitle() != null && series.getTitle().toLowerCase().contains(lowerQuery)) {
+            return true;
+        }
+        if (series.getNotes() != null && series.getNotes().toLowerCase().contains(lowerQuery)) {
+            return true;
+        }
+        if (series.getGenre() != null && series.getGenre().toLowerCase().contains(lowerQuery)) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean matchesCollection(Collection collection, String query) {
+        return collection.getName() != null &&
+                collection.getName().toLowerCase().contains(query.toLowerCase());
+    }
+
+    private void showSearchResults() {
+        searchResultsContainer.setVisibility(View.VISIBLE);
+        viewPager.setVisibility(View.GONE);
+        tabLayout.setVisibility(View.GONE);
+        backupSettingsButton.setVisibility(View.GONE);
+    }
+
+    private void hideSearchResults() {
+        searchResultsContainer.setVisibility(View.GONE);
+        viewPager.setVisibility(View.VISIBLE);
+        tabLayout.setVisibility(View.VISIBLE);
+        backupSettingsButton.setVisibility(View.VISIBLE);
+
+        // Очищаем адаптеры
+        collectionsSearchAdapter.setCollections(new ArrayList<>());
+        seriesSearchAdapter.setSeriesList(new ArrayList<>());
+    }
+
+    private void checkAndShowNoResults(boolean noResults) {
+        noSearchResultsText.setVisibility(noResults ? View.VISIBLE : View.GONE);
     }
 
     private void openBackupSettingsScreen() {
@@ -229,5 +544,25 @@ public class MainScreen extends Fragment {
                     Toast.LENGTH_SHORT).show();
             e.printStackTrace();
         }
+    }
+
+    private void openEditSeriesScreen(Series series) {
+        EditSeriesScreen editScreen = EditSeriesScreen.newInstance(series.getId());
+        requireActivity().getSupportFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, editScreen)
+                .addToBackStack(null)
+                .commit();
+    }
+
+    private void openCollectionDetailScreen(Collection collection) {
+        CollectionDetailScreen detailScreen = new CollectionDetailScreen();
+        Bundle bundle = new Bundle();
+        bundle.putLong("collectionId", collection.getId());
+        detailScreen.setArguments(bundle);
+
+        requireActivity().getSupportFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, detailScreen)
+                .addToBackStack(null)
+                .commit();
     }
 }

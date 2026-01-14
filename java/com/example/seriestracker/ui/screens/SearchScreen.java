@@ -59,12 +59,17 @@ public class SearchScreen extends Fragment {
     private List<Series> allSeries = new ArrayList<>();
     private List<Collection> allCollections = new ArrayList<>();
 
+    // Тип поиска: 0=Обычный (все), 1=Поиск в коллекциях, 2=Поиск в сериалах
+    private int searchType = 0;
     // Фильтр: 0=Все, 1=Коллекции, 2=Сериалы
     private int currentFilter = 0;
 
     // Поисковый запрос
     private String currentQuery = "";
 
+
+    // Начальный текст поиска (если передан из другого фрагмента)
+    private String initialQuery = "";
 
     // Для дебаунса поиска
     private Handler searchHandler = new Handler(Looper.getMainLooper());
@@ -74,6 +79,10 @@ public class SearchScreen extends Fragment {
     // Пул потоков для выполнения поиска
     private ExecutorService executor = Executors.newSingleThreadExecutor();
 
+    // Константы для типа поиска
+    public static final int SEARCH_TYPE_ALL = 0;
+    public static final int SEARCH_TYPE_COLLECTIONS_ONLY = 1;
+    public static final int SEARCH_TYPE_SERIES_ONLY = 2;
     // Для отслеживания последнего запроса во время поиска
     private volatile String lastProcessedQuery = "";
 
@@ -81,6 +90,23 @@ public class SearchScreen extends Fragment {
         // Required empty public constructor
     }
 
+    public static SearchScreen newInstance(int searchType) {
+        SearchScreen fragment = new SearchScreen();
+        Bundle args = new Bundle();
+        args.putInt("search_type", searchType);
+        fragment.setArguments(args);
+        return fragment;
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        if (getArguments() != null) {
+            searchType = getArguments().getInt("search_type", SEARCH_TYPE_ALL);
+            initialQuery = getArguments().getString("initial_query", "");
+        }
+    }
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -196,13 +222,33 @@ public class SearchScreen extends Fragment {
             searchEditText.requestFocus();
         });
 
-        // Кнопка меню фильтрации
-        filterMenuButton.setOnClickListener(v -> {
-            showFilterMenu(v);
-        });
+        // Кнопка меню фильтрации - показываем только в обычном режиме
+        if (searchType == SEARCH_TYPE_ALL) {
+            filterMenuButton.setOnClickListener(v -> {
+                showFilterMenu(v);
+            });
+        } else {
+            // В контекстном режиме прячем кнопку фильтра
+            filterMenuButton.setVisibility(View.GONE);
+            // Также устанавливаем соответствующий текст для фильтра и фиксируем значение currentFilter
+            if (searchType == SEARCH_TYPE_COLLECTIONS_ONLY) {
+                currentFilter = 1; // Только коллекции
+                currentFilterText.setText("Фильтр: Только коллекции");
+            } else if (searchType == SEARCH_TYPE_SERIES_ONLY) {
+                currentFilter = 2; // Только сериалы
+                currentFilterText.setText("Фильтр: Только сериалы");
+            }
+        }
 
-        // Фокусируемся на поле поиска при открытии
+        // Фокусируемся на поле поиска при открытии и устанавливаем начальное значение
+        searchEditText.setText(initialQuery);
+        searchEditText.setSelection(initialQuery.length()); // Устанавливаем курсор в конец текста
         searchEditText.requestFocus();
+        // Если был передан начальный запрос, запускаем поиск
+        if (!initialQuery.isEmpty()) {
+            currentQuery = initialQuery;
+            performSearch();
+        }
     }
 
     private void showFilterMenu(View view) {
@@ -276,19 +322,22 @@ public class SearchScreen extends Fragment {
             List<Series> filteredSeries = new ArrayList<>();
             List<Collection> filteredCollections = new ArrayList<>();
 
-            // Если запрос пустой, показываем все согласно фильтру
+            // Если запрос пустой, показываем все согласно типу поиска и фильтру
             if (query.isEmpty()) {
-                if (currentFilter == 0 || currentFilter == 2) {
+                if ((searchType == SEARCH_TYPE_ALL || searchType == SEARCH_TYPE_SERIES_ONLY) &&
+                        (currentFilter == 0 || currentFilter == 2)) {
                     // Показываем все сериалы
                     filteredSeries.addAll(allSeries);
                 }
-                if (currentFilter == 0 || currentFilter == 1) {
+                if ((searchType == SEARCH_TYPE_ALL || searchType == SEARCH_TYPE_COLLECTIONS_ONLY) &&
+                        (currentFilter == 0 || currentFilter == 1)) {
                     // Показываем все коллекции
                     filteredCollections.addAll(allCollections);
                 }
             } else {
                 // Выполняем поиск по запросу
-                if (currentFilter == 0 || currentFilter == 2) {
+                if ((searchType == SEARCH_TYPE_ALL || searchType == SEARCH_TYPE_SERIES_ONLY) &&
+                        (currentFilter == 0 || currentFilter == 2)) {
                     // Ищем в сериалах
                     for (Series series : allSeries) {
                         if (!lastProcessedQuery.equals(currentQuery)) {
@@ -302,7 +351,8 @@ public class SearchScreen extends Fragment {
                     }
                 }
 
-                if (currentFilter == 0 || currentFilter == 1) {
+                if ((searchType == SEARCH_TYPE_ALL || searchType == SEARCH_TYPE_COLLECTIONS_ONLY) &&
+                        (currentFilter == 0 || currentFilter == 1)) {
                     // Ищем в коллекциях
                     for (Collection collection : allCollections) {
                         if (!lastProcessedQuery.equals(currentQuery)) {

@@ -23,6 +23,8 @@ public class Series {
     private int seasons;
     private int episodes;
 
+    private long collectionId;
+
     public Series() {
         this.createdAt = System.currentTimeMillis();
         this.status = "planned";
@@ -31,6 +33,7 @@ public class Series {
         this.rating = 0;
         this.seasons = 0;
         this.episodes = 0;
+        this.collectionId = 0;
     }
 
     public Series(String title) {
@@ -51,6 +54,7 @@ public class Series {
     public String getGenre() { return genre; }
     public int getSeasons() { return seasons; }
     public int getEpisodes() { return episodes; }
+    public long getCollectionId() { return collectionId; }
 
     // Сеттеры
     public void setId(long id) { this.id = id; }
@@ -65,4 +69,5 @@ public class Series {
     public void setGenre(String genre) { this.genre = genre; }
     public void setSeasons(int seasons) { this.seasons = seasons; }
     public void setEpisodes(int episodes) { this.episodes = episodes; }
+    public void setCollectionId(long collectionId) { this.collectionId = collectionId; }
 }
