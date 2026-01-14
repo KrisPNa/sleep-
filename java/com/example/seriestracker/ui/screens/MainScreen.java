@@ -102,7 +102,6 @@ public class MainScreen extends Fragment {
             closeContextualSearch();
         }
     }
-
     private void toggleButtons() {
         if (isButtonsVisible) {
             hideButtons();

@@ -456,7 +456,6 @@ public class SearchScreen extends Fragment {
                 .commit();
     }
 
-
     @Override
     public void onResume() {
         super.onResume();
