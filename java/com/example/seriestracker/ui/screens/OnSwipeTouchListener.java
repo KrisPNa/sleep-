@@ -27,6 +27,11 @@ public class OnSwipeTouchListener implements OnTouchListener {
     public void onSwipeBottom() {
     }
 
+    // Переименуем этот метод, чтобы избежать конфликта
+    public void onDoubleTapPerformed() {
+    }
+
+    @Override
     public boolean onTouch(View v, MotionEvent event) {
         return gestureDetector.onTouchEvent(event);
     }
@@ -38,6 +43,18 @@ public class OnSwipeTouchListener implements OnTouchListener {
 
         @Override
         public boolean onDown(MotionEvent e) {
+            return true;
+        }
+
+        @Override
+        public boolean onSingleTapUp(MotionEvent e) {
+            return true;
+        }
+
+        @Override
+        public boolean onDoubleTap(MotionEvent e) {
+            // Вызываем переименованный метод
+            onDoubleTapPerformed();
             return true;
         }
 

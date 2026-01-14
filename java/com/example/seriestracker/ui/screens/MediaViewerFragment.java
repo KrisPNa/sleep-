@@ -48,6 +48,8 @@ public class MediaViewerFragment extends Fragment {
     private Handler handler = new Handler();
     private Runnable hideControlsRunnable;
 
+    private OnSwipeTouchListener swipeListener;
+
     public static MediaViewerFragment newInstance(ArrayList<MediaFile> mediaFiles, int position) {
         MediaViewerFragment fragment = new MediaViewerFragment();
         Bundle args = new Bundle();
@@ -101,20 +103,17 @@ public class MediaViewerFragment extends Fragment {
                 isVideoPlaying = false;
                 showControls();
             } else {
-                // Проверяем, подготовлено ли видео
                 if (customVideoView.getCurrentMediaPlayer() != null) {
                     customVideoView.start();
                     playPauseButton.setImageResource(R.drawable.ic_baseline_pause_24);
                     isVideoPlaying = true;
                     hideControlsDelayed();
                 } else {
-                    // Видео еще не подготовлено
                     Toast.makeText(getContext(), "Видео загружается...", Toast.LENGTH_SHORT).show();
                 }
             }
         });
 
-        // Настраиваем слушатели
         customVideoView.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
             @Override
             public void onPrepared(MediaPlayer mp) {
@@ -123,14 +122,8 @@ public class MediaViewerFragment extends Fragment {
                 customVideoView.setProgressBarVisible(false);
                 playPauseButton.setVisibility(View.VISIBLE);
                 playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
-
-                // Автоматически запускаем воспроизведение
-                customVideoView.start();
-                playPauseButton.setImageResource(R.drawable.ic_baseline_pause_24);
-                isVideoPlaying = true;
-
-                // Скрываем контролы через 3 секунды
-                hideControlsDelayed();
+                isVideoPlaying = false;
+                showControls();
             }
         });
 
@@ -143,7 +136,6 @@ public class MediaViewerFragment extends Fragment {
                 playPauseButton.setVisibility(View.VISIBLE);
                 playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
 
-                // Показываем сообщение об ошибке
                 String errorMsg = "Ошибка воспроизведения видео";
                 if (what == MediaPlayer.MEDIA_ERROR_UNKNOWN) {
                     errorMsg = "Неизвестная ошибка видео";
@@ -165,7 +157,6 @@ public class MediaViewerFragment extends Fragment {
             }
         });
 
-        // Добавляем слушатель информации о видео
         customVideoView.setOnInfoListener(new MediaPlayer.OnInfoListener() {
             @Override
             public boolean onInfo(MediaPlayer mp, int what, int extra) {
@@ -191,16 +182,85 @@ public class MediaViewerFragment extends Fragment {
             }
         });
 
-        // Обработка касания видео
+        // Настраиваем обработчик касаний для VideoView
         customVideoView.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
+                // Сначала передаем событие жестовому детектору
+                if (swipeListener != null) {
+                    boolean handledByGesture = swipeListener.onTouch(v, event);
+
+                    // Если жесты не обработали событие, то обрабатываем касания
+                    if (!handledByGesture && event.getAction() == MotionEvent.ACTION_UP) {
+                        toggleControls();
+                    }
+                    return true; // Всегда возвращаем true, чтобы получать все события
+                }
+
+                // Если жестовый детектор не инициализирован, обрабатываем касания
                 if (event.getAction() == MotionEvent.ACTION_UP) {
                     toggleControls();
                 }
                 return true;
             }
         });
+    }
+
+    private void setupGestures(View view) {
+        // Создаем анонимный класс OnSwipeTouchListener
+        swipeListener = new OnSwipeTouchListener(requireContext()) {
+            @Override
+            public void onSwipeRight() {
+                if (currentPosition > 0) {
+                    Log.d("MediaViewer", "Swipe right - going to previous media");
+                    if (customVideoView.isPlaying()) {
+                        customVideoView.pause();
+                    }
+                    showMedia(currentPosition - 1);
+                }
+            }
+
+            @Override
+            public void onSwipeLeft() {
+                if (currentPosition < mediaFiles.size() - 1) {
+                    Log.d("MediaViewer", "Swipe left - going to next media");
+                    if (customVideoView.isPlaying()) {
+                        customVideoView.pause();
+                    }
+                    showMedia(currentPosition + 1);
+                }
+            }
+
+            @Override
+            public void onSwipeBottom() {
+                if (customVideoView.isPlaying()) {
+                    customVideoView.stopPlayback();
+                }
+                requireActivity().getSupportFragmentManager().popBackStack();
+            }
+
+            // УБИРАЕМ @Override - это НЕ переопределение, а реализация абстрактного метода
+            public void onDoubleTapPerformed() {
+                if (customVideoView.getVisibility() == View.VISIBLE) {
+                    if (customVideoView.isPlaying()) {
+                        customVideoView.pause();
+                        playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
+                        isVideoPlaying = false;
+                        showControls();
+                    } else {
+                        if (customVideoView.getCurrentMediaPlayer() != null) {
+                            customVideoView.start();
+                            playPauseButton.setImageResource(R.drawable.ic_baseline_pause_24);
+                            isVideoPlaying = true;
+                            hideControlsDelayed();
+                        }
+                    }
+                }
+            }
+        };
+
+        // Устанавливаем слушатель для всей view
+        view.setOnTouchListener(swipeListener);
     }
 
     private void showMedia(int position) {
@@ -220,13 +280,11 @@ public class MediaViewerFragment extends Fragment {
             videoControls.setVisibility(View.VISIBLE);
 
             progressBar.setVisibility(View.VISIBLE);
-            playPauseButton.setVisibility(View.GONE); // Скрываем пока не готово
+            playPauseButton.setVisibility(View.GONE);
 
-            // Логируем URI для отладки
             String videoUri = mediaFile.getFileUri();
             Log.d("MediaViewer", "Video URI: " + videoUri);
 
-            // Проверяем URI
             if (videoUri == null || videoUri.isEmpty()) {
                 Log.e("MediaViewer", "Video URI is null or empty");
                 Toast.makeText(getContext(), "Некорректный URI видео", Toast.LENGTH_SHORT).show();
@@ -239,20 +297,14 @@ public class MediaViewerFragment extends Fragment {
                 try {
                     Log.d("MediaViewer", "Setting video URI: " + uri.toString());
 
-                    // Сначала сбрасываем предыдущее видео
                     if (customVideoView.isPlaying()) {
                         customVideoView.stopPlayback();
                     }
 
-                    // Показываем прогресс
                     customVideoView.setProgressBarVisible(true);
-
-                    // Устанавливаем обложку
                     customVideoView.setVideoThumbnail(videoUri);
 
-                    // Проверяем, является ли URI файлом из внутреннего хранилища
                     if ("file".equals(uri.getScheme())) {
-                        // Проверяем существование файла
                         File file = new File(uri.getPath());
                         if (!file.exists()) {
                             Log.e("MediaViewer", "Video file does not exist: " + uri.getPath());
@@ -262,7 +314,6 @@ public class MediaViewerFragment extends Fragment {
                         }
                     }
 
-                    // Устанавливаем URI
                     customVideoView.setVideoURI(uri);
 
                 } catch (Exception e) {
@@ -277,7 +328,6 @@ public class MediaViewerFragment extends Fragment {
             }
 
         } else {
-            // Показ изображения
             Log.d("MediaViewer", "Showing image");
             customVideoView.setVisibility(View.GONE);
             videoControls.setVisibility(View.GONE);
@@ -286,53 +336,13 @@ public class MediaViewerFragment extends Fragment {
             try {
                 Glide.with(this)
                         .load(Uri.parse(mediaFile.getFileUri()))
-                        .error(R.drawable.ic_baseline_image_24) // Добавляем ошибку плейсхолдера
+                        .error(R.drawable.ic_baseline_image_24)
                         .into(imageView);
             } catch (Exception e) {
-                // Если возникла ошибка при загрузке, показываем плейсхолдер
                 imageView.setImageResource(R.drawable.ic_baseline_image_24);
                 Log.e("MediaViewer", "Error loading image: " + e.getMessage(), e);
             }
         }
-    }
-
-    private void setupGestures(View view) {
-        // Жест свайпа вправо (предыдущий файл)
-        view.setOnTouchListener(new OnSwipeTouchListener(requireContext()) {
-            @Override
-            public void onSwipeRight() {
-                if (currentPosition > 0) {
-                    Log.d("MediaViewer", "Swipe right - going to previous media");
-                    // Останавливаем текущее видео
-                    if (customVideoView.isPlaying()) {
-                        customVideoView.pause();
-                    }
-                    showMedia(currentPosition - 1);
-                }
-            }
-
-            @Override
-            public void onSwipeLeft() {
-                if (currentPosition < mediaFiles.size() - 1) {
-                    Log.d("MediaViewer", "Swipe left - going to next media");
-                    // Останавливаем текущее видео
-                    if (customVideoView.isPlaying()) {
-                        customVideoView.pause();
-                    }
-                    showMedia(currentPosition + 1);
-                }
-            }
-
-            @Override
-            public void onSwipeTop() {
-                // Можно добавить другие жесты
-            }
-
-            @Override
-            public void onSwipeBottom() {
-                // Можно добавить другие жесты
-            }
-        });
     }
 
     private void toggleControls() {
@@ -374,7 +384,7 @@ public class MediaViewerFragment extends Fragment {
             }
         };
 
-        handler.postDelayed(hideControlsRunnable, 3000); // Скрыть через 3 секунды
+        handler.postDelayed(hideControlsRunnable, 3000);
     }
 
     @Override
