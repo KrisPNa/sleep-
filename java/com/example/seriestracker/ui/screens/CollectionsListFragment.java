@@ -2,9 +2,12 @@ package com.example.seriestracker.ui.screens;
 
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -35,6 +38,7 @@ public class CollectionsListFragment extends Fragment {
     private TextView noCollectionsText;
     private TextView collectionsTitle;
     private List<Collection> allCollections = new ArrayList<>();
+    private int currentSortOrder = 0;
 
     public CollectionsListFragment() {
         // Required empty public constructor
@@ -66,9 +70,12 @@ public class CollectionsListFragment extends Fragment {
         collectionsCount = view.findViewById(R.id.collectionsCount);
         noCollectionsText = view.findViewById(R.id.noCollectionsText);
         collectionsTitle = view.findViewById(R.id.collectionsTitle);
+        ImageButton sortButton = view.findViewById(R.id.collectionsSortButton);
 
         // Установим заголовок
         collectionsTitle.setText("Мои коллекции");
+        sortButton.setOnClickListener(v -> showSortMenu(v));
+
     }
 
     private void setupRecyclerView() {
@@ -128,17 +135,118 @@ public class CollectionsListFragment extends Fragment {
         });
     }
 
-    private List<Collection> getSortedCollections(List<Collection> collections) {
-        List<Collection> sorted = new ArrayList<>(collections);
-        Collections.sort(sorted, new Comparator<Collection>() {
+    private void showSortMenu(View view) {
+        PopupMenu popup = new PopupMenu(getContext(), view);
+        popup.getMenuInflater().inflate(R.menu.sort_collections_menu, popup.getMenu());
+
+        // Отметим текущий пункт сортировки как выбранный
+        Menu menu = popup.getMenu();
+        switch (currentSortOrder) {
+            case 0: // по имени А-Я
+                menu.findItem(R.id.sort_by_name_asc).setChecked(true);
+                break;
+            case 1: // по имени Я-А
+                menu.findItem(R.id.sort_by_name_desc).setChecked(true);
+                break;
+            case 2: // по количеству сериалов (возр.)
+                menu.findItem(R.id.sort_by_count_asc).setChecked(true);
+                break;
+            case 3: // по количеству сериалов (убыв.)
+                menu.findItem(R.id.sort_by_count_desc).setChecked(true);
+                break;
+        }
+
+        popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
             @Override
-            public int compare(Collection c1, Collection c2) {
-                if (c1.isFavorite() != c2.isFavorite()) {
-                    return c2.isFavorite() ? 1 : -1;
+            public boolean onMenuItemClick(MenuItem item) {
+                int itemId = item.getItemId();
+
+                if (itemId == R.id.sort_by_name_asc) {
+                    currentSortOrder = 0;
+                    item.setChecked(true);
+                } else if (itemId == R.id.sort_by_name_desc) {
+                    currentSortOrder = 1;
+                    item.setChecked(true);
+                } else if (itemId == R.id.sort_by_count_asc) {
+                    currentSortOrder = 2;
+                    item.setChecked(true);
+                } else if (itemId == R.id.sort_by_count_desc) {
+                    currentSortOrder = 3;
+                    item.setChecked(true);
+                } else {
+                    return false;
                 }
-                return c1.getName().compareToIgnoreCase(c2.getName());
+
+                // Обновляем список с новой сортировкой
+                updateCollectionList();
+
+                return true;
             }
         });
+
+        popup.show();
+    }
+    private List<Collection> getSortedCollections(List<Collection> collections) {
+        List<Collection> sorted = new ArrayList<>(collections);
+
+        switch (currentSortOrder) {
+            case 0: // по имени А-Я
+                Collections.sort(sorted, new Comparator<Collection>() {
+                    @Override
+                    public int compare(Collection c1, Collection c2) {
+                        if (c1.isFavorite() != c2.isFavorite()) {
+                            return c2.isFavorite() ? 1 : -1;
+                        }
+                        return c1.getName().compareToIgnoreCase(c2.getName());
+                    }
+                });
+                break;
+            case 1: // по имени Я-А
+                Collections.sort(sorted, new Comparator<Collection>() {
+                    @Override
+                    public int compare(Collection c1, Collection c2) {
+                        if (c1.isFavorite() != c2.isFavorite()) {
+                            return c2.isFavorite() ? 1 : -1;
+                        }
+                        return c2.getName().compareToIgnoreCase(c1.getName());
+                    }
+                });
+                break;
+            case 2: // по количеству сериалов (возр.)
+                Collections.sort(sorted, new Comparator<Collection>() {
+                    @Override
+                    public int compare(Collection c1, Collection c2) {
+                        if (c1.isFavorite() != c2.isFavorite()) {
+                            return c2.isFavorite() ? 1 : -1;
+                        }
+                        // Сравниваем по количеству сериалов (c1.seriesCount - c2.seriesCount)
+                        int count1 = c1.getSeriesCount(); // Просто получаем значение
+                        int count2 = c2.getSeriesCount(); // Просто получаем значение
+                        return Integer.compare(count1, count2);
+                    }
+                });
+                break;
+            case 3: // по количеству сериалов (убыв.)
+                Collections.sort(sorted, new Comparator<Collection>() {
+                    @Override
+                    public int compare(Collection c1, Collection c2) {
+                        if (c1.isFavorite() != c2.isFavorite()) {
+                            return c2.isFavorite() ? 1 : -1;
+                        }
+                        // Сравниваем по количеству сериалов (c2.seriesCount - c1.seriesCount)
+                        int count1 = c1.getSeriesCount(); // Просто получаем значение
+                        int count2 = c2.getSeriesCount(); // Просто получаем значение
+                        return Integer.compare(count2, count1);
+                    }
+                });
+                break;
+        }
+
         return sorted;
+    }
+
+    private void updateCollectionList() {
+        List<Collection> sortedCollections = getSortedCollections(allCollections);
+        collectionAdapter.setCollections(sortedCollections);
     }
 }
