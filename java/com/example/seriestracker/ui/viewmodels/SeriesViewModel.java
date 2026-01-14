@@ -19,14 +19,14 @@ public class SeriesViewModel extends AndroidViewModel {
     private SeriesRepository repository;
     private LiveData<List<Series>> allSeries;
     private LiveData<List<Collection>> allCollections;
-    private LiveData<List<CollectionWithSeries>> collectionsWithSeries;
+    private LiveData<List<Collection>> collectionsWithSeries;
 
     public SeriesViewModel(Application application) {
         super(application);
         repository = new SeriesRepository(application);
         allSeries = repository.getAllSeries();
         allCollections = repository.getAllCollections();
-        collectionsWithSeries = repository.getCollectionsWithSeries();
+        collectionsWithSeries = repository.getAllCollectionsWithSeriesCount();
     }
 
     // === Коллекции ===
@@ -53,6 +53,10 @@ public class SeriesViewModel extends AndroidViewModel {
 
     public LiveData<List<Collection>> getAllCollections() {
         return allCollections;
+    }
+
+    public LiveData<List<Collection>> getAllCollectionsWithSeriesCount() {
+        return repository.getAllCollectionsWithSeriesCount();
     }
 
     public void deleteCollection(long collectionId) {
@@ -130,7 +134,7 @@ public class SeriesViewModel extends AndroidViewModel {
     }
 
     // === Коллекции с сериалами ===
-    public LiveData<List<CollectionWithSeries>> getCollectionsWithSeries() {
+    public LiveData<List<Collection>> getCollectionsWithSeries() {
         return collectionsWithSeries;
     }
 

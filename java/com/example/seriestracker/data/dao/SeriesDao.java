@@ -131,6 +131,12 @@ public interface SeriesDao {
     @Query("SELECT COUNT(*) FROM series_collection_cross_ref WHERE collectionId = :collectionId")
     LiveData<Integer> getSeriesCountInCollection(long collectionId);
 
+    // Новый метод: получить коллекции с правильным количеством сериалов
+    @Query("SELECT c.*, (SELECT COUNT(*) FROM series_collection_cross_ref sc WHERE sc.collectionId = c.id) AS seriesCount " +
+            "FROM collections c ORDER BY c.isFavorite DESC, c.name COLLATE NOCASE ASC")
+    LiveData<List<Collection>> getAllCollectionsWithSeriesCount();
+
+
     // Новые методы для EditSeriesScreen
     @Query("SELECT * FROM series_collection_cross_ref WHERE seriesId = :seriesId AND collectionId = :collectionId")
     SeriesCollectionCrossRef getCrossRef(long seriesId, long collectionId);

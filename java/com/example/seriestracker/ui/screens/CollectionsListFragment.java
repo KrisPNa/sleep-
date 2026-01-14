@@ -17,7 +17,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.seriestracker.R;
 import com.example.seriestracker.data.entities.Collection;
-import com.example.seriestracker.data.entities.CollectionWithSeries;
 import com.example.seriestracker.ui.adapters.CollectionAdapter;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 
@@ -107,24 +106,8 @@ public class CollectionsListFragment extends Fragment {
     }
 
     private void observeData() {
-        viewModel.getCollectionsWithSeries().observe(getViewLifecycleOwner(), collectionWithSeriesList -> {
-            if (collectionWithSeriesList != null && !collectionWithSeriesList.isEmpty()) {
-                List<Collection> collections = new ArrayList<>();
-                for (CollectionWithSeries cws : collectionWithSeriesList) {
-                    // Используем геттер вместо прямого доступа к полю
-                    Collection collection = cws.getCollection();
-
-                    // Получаем количество сериалов через ViewModel
-                    viewModel.getSeriesCountInCollection(collection.getId()).observe(
-                            getViewLifecycleOwner(), count -> {
-                                if (count != null) {
-                                    collection.setSeriesCount(count);
-                                    collectionAdapter.notifyDataSetChanged();
-                                }
-                            });
-
-                    collections.add(collection);
-                }
+        viewModel.getAllCollectionsWithSeriesCount().observe(getViewLifecycleOwner(), collections -> {
+            if (collections != null && !collections.isEmpty()) {
                 allCollections = collections;
 
                 List<Collection> sortedCollections = getSortedCollections(allCollections);
@@ -138,9 +121,9 @@ public class CollectionsListFragment extends Fragment {
             }
         });
 
-        viewModel.getAllCollections().observe(getViewLifecycleOwner(), collections -> {
-            if (collections != null) {
-                collectionsCount.setText(String.valueOf(collections.size()));
+        viewModel.getAllCollections().observe(getViewLifecycleOwner(), allColls -> {
+            if (allColls != null) {
+                collectionsCount.setText(String.valueOf(allColls.size()));
             }
         });
     }

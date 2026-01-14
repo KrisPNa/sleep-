@@ -56,6 +56,11 @@ public class SeriesRepository {
         return seriesDao.getAllCollections();
     }
 
+
+    public LiveData<List<Collection>> getAllCollectionsWithSeriesCount() {
+        return seriesDao.getAllCollectionsWithSeriesCount();
+    }
+
     public LiveData<Collection> getCollectionById(long collectionId) {
         return seriesDao.getCollectionById(collectionId);
     }

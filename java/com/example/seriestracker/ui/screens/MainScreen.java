@@ -416,25 +416,15 @@ public class MainScreen extends Fragment {
                             }
                         }
 
-                        // Теперь для каждой отфильтрованной коллекции нужно посчитать сериалы
-                        // Получаем список всех сериалов и считаем, какие принадлежат каждой коллекции
-                        if (seriesList != null) {
-                            // Создаем карту collectionId -> количество сериалов
-                            Map<Long, Integer> seriesCountMap = new HashMap<>();
-
-                            for (Series series : seriesList) {
-                                if (series.getCollectionId() > 0) {
-                                    long collectionId = series.getCollectionId();
-                                    seriesCountMap.put(collectionId,
-                                            seriesCountMap.getOrDefault(collectionId, 0) + 1);
+                        // Используем тот же метод, что и в CollectionDetailScreen
+                        // Получаем количество сериалов для каждой коллекции
+                        for (Collection collection : filteredCollections) {
+                            viewModel.getSeriesInCollection(collection.getId()).observe(this, seriesInCollection -> {
+                                if (seriesInCollection != null) {
+                                    collection.setSeriesCount(seriesInCollection.size());
+                                    collectionsSearchAdapter.notifyDataSetChanged(); // Обновить отображение
                                 }
-                            }
-
-                            // Устанавливаем количество сериалов для каждой коллекции
-                            for (Collection collection : filteredCollections) {
-                                int seriesCount = seriesCountMap.getOrDefault(collection.getId(), 0);
-                                collection.setSeriesCount(seriesCount);
-                            }
+                            });
                         }
                     }
                     // На вкладке коллекций НЕ показываем сериалы вообще
