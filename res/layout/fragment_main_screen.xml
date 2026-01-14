@@ -12,20 +12,17 @@
         android:orientation="vertical">
 
         <!-- Заголовок с иконкой поиска -->
-        <LinearLayout
+        <FrameLayout
             android:id="@+id/headerLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
             android:padding="16dp"
             android:layout_marginBottom="14dp">
 
             <TextView
                 android:id="@+id/welcomeText"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
                 android:gravity="center"
                 android:text="Нет, лакорн смотреть"
                 android:textColor="@color/primary_blue"
@@ -34,20 +31,133 @@
                 android:clickable="true"
                 android:focusable="true" />
 
-            <!-- Иконка поиска -->
+        <!-- Поле поиска поверх текста (изначально скрыто) -->
+        <LinearLayout
+            android:id="@+id/searchContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/search_background"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="8dp"
+            android:layout_marginTop="4dp"
+            android:visibility="gone"
+            android:elevation="4dp">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_baseline_search_24"
+                android:tint="@color/text_gray"
+                android:layout_marginEnd="8dp" />
+
+            <EditText
+                android:id="@+id/contextualSearchEditText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Поиск..."
+                android:textSize="14sp"
+                android:maxLines="1"
+                android:inputType="text"
+                android:background="@android:color/transparent"
+                android:padding="0dp" />
+
+            <ImageView
+                android:id="@+id/clearContextualSearchButton"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_baseline_close_24"
+                android:tint="@color/text_gray"
+                android:visibility="gone"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Иконка поиска справа -->
             <ImageButton
                 android:id="@+id/searchButton"
                 android:layout_width="46dp"
-                android:paddingTop="7dp"
+
                 android:layout_height="match_parent"
+
+                android:layout_gravity="end|center_vertical"
+                android:paddingTop="7dp"
                 android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:contentDescription="Поиск"
                 android:src="@drawable/ic_baseline_search_24"
                 android:tint="@color/primary_blue" />
+        </FrameLayout>
+
+        <!-- Результаты поиска (изначально скрыты) -->
+        <LinearLayout
+            android:id="@+id/searchResultsContainer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:padding="16dp">
+
+            <!-- Заголовок для результатов поиска коллекций -->
+            <TextView
+                android:id="@+id/collectionsSearchTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Коллекции"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/primary_blue"
+                android:layout_marginBottom="8dp"
+                android:visibility="gone"/>
+
+            <!-- RecyclerView для результатов поиска коллекций -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/collectionsSearchRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:nestedScrollingEnabled="false"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone" />
+
+            <!-- Заголовок для результатов поиска сериалов -->
+            <TextView
+                android:id="@+id/seriesSearchTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Сериалы"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/primary_blue"
+                android:layout_marginBottom="8dp"
+                android:visibility="gone"/>
+
+            <!-- RecyclerView для результатов поиска сериалов -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/seriesSearchRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:nestedScrollingEnabled="false"
+                android:visibility="gone" />
+
+            <!-- Текст, когда нет результатов -->
+            <TextView
+                android:id="@+id/noSearchResultsText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Ничего не найдено"
+                android:textSize="16sp"
+                android:textColor="@color/text_gray"
+                android:gravity="center"
+                android:layout_gravity="center"
+                android:visibility="gone"/>
 
         </LinearLayout>
 
-        <!-- Tabs for switching between collections and series -->
+        <!-- Tabs for switching between collections and series (видимые только когда нет результатов поиска) -->
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/tabLayout"
             android:layout_width="match_parent"
@@ -71,7 +181,7 @@
 
         </com.google.android.material.tabs.TabLayout>
 
-        <!-- ViewPager2 for swipe functionality -->
+        <!-- ViewPager2 for swipe functionality (видимый только когда нет результатов поиска) -->
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/viewPager"
             android:layout_width="match_parent"
