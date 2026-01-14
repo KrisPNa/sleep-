@@ -458,6 +458,15 @@ public class SearchScreen extends Fragment {
 
 
     @Override
+    public void onResume() {
+        super.onResume();
+        // При возвращении в SearchScreen из других фрагментов (например, коллекции),
+        // может потребоваться обновить данные или сбросить состояние
+        // В данном случае, мы просто обновим поиск с текущим запросом
+        performSearch();
+    }
+
+    @Override
     public void onDestroyView() {
         super.onDestroyView();
         // Отменяем запланированные задачи поиска
