@@ -403,6 +403,16 @@ public class SearchScreen extends Fragment {
     }
 
     private void updateUI(List<Series> filteredSeries, List<Collection> filteredCollections, String query) {
+        // Сортируем сериалы, чтобы избранные были сверху
+        if (!filteredSeries.isEmpty()) {
+            java.util.Collections.sort(filteredSeries, (s1, s2) -> {
+                if (s1.getIsFavorite() != s2.getIsFavorite()) {
+                    return s2.getIsFavorite() ? 1 : -1;
+                }
+                return s1.getTitle().compareToIgnoreCase(s2.getTitle());
+            });
+        }
+
         // Обновляем сериалы
         if (!filteredSeries.isEmpty()) {
             seriesTitle.setVisibility(View.VISIBLE);

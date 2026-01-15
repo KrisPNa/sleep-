@@ -217,6 +217,10 @@ public class AllSeriesScreen extends Fragment {
                 Collections.sort(sorted, new Comparator<Series>() {
                     @Override
                     public int compare(Series s1, Series s2) {
+                        // Сначала проверяем избранное
+                        if (s1.getIsFavorite() != s2.getIsFavorite()) {
+                            return s2.getIsFavorite() ? 1 : -1;
+                        }
                         return s1.getTitle().compareToIgnoreCase(s2.getTitle());
                     }
                 });
@@ -225,6 +229,10 @@ public class AllSeriesScreen extends Fragment {
                 Collections.sort(sorted, new Comparator<Series>() {
                     @Override
                     public int compare(Series s1, Series s2) {
+                        // Сначала проверяем избранное
+                        if (s1.getIsFavorite() != s2.getIsFavorite()) {
+                            return s2.getIsFavorite() ? 1 : -1;
+                        }
                         return s2.getTitle().compareToIgnoreCase(s1.getTitle());
                     }
                 });
@@ -233,6 +241,10 @@ public class AllSeriesScreen extends Fragment {
                 Collections.sort(sorted, new Comparator<Series>() {
                     @Override
                     public int compare(Series s1, Series s2) {
+                        // Сначала проверяем избранное
+                        if (s1.getIsFavorite() != s2.getIsFavorite()) {
+                            return s2.getIsFavorite() ? 1 : -1;
+                        }
                         int episodes1 = s1.getEpisodes();
                         int episodes2 = s2.getEpisodes();
                         return Integer.compare(episodes1, episodes2);
@@ -243,6 +255,10 @@ public class AllSeriesScreen extends Fragment {
                 Collections.sort(sorted, new Comparator<Series>() {
                     @Override
                     public int compare(Series s1, Series s2) {
+                        // Сначала проверяем избранное
+                        if (s1.getIsFavorite() != s2.getIsFavorite()) {
+                            return s2.getIsFavorite() ? 1 : -1;
+                        }
                         int episodes1 = s1.getEpisodes();
                         int episodes2 = s2.getEpisodes();
                         return Integer.compare(episodes2, episodes1);
@@ -256,6 +272,10 @@ public class AllSeriesScreen extends Fragment {
                 Collections.sort(sorted, new Comparator<Series>() {
                     @Override
                     public int compare(Series s1, Series s2) {
+                        // Сначала проверяем избранное
+                        if (s1.getIsFavorite() != s2.getIsFavorite()) {
+                            return s2.getIsFavorite() ? 1 : -1;
+                        }
                         // Если выбран конкретный статус для сортировки
                         if (currentStatusFilter != null) {
                             boolean s1IsTargetStatus = s1.getStatus().equals(currentStatusFilter);
