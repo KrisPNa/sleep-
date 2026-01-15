@@ -38,22 +38,22 @@
             android:id="@+id/closeButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:src="@drawable/ic_baseline_close_24"
             android:background="?android:attr/selectableItemBackground"
-            android:contentDescription="Закрыть" />
+            android:contentDescription="Закрыть"
+            android:src="@drawable/ic_baseline_close_24" />
 
         <!-- Имя файла -->
         <TextView
             android:id="@+id/fileNameTextView"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:layout_gravity="center_vertical"
             android:layout_marginStart="16dp"
-            android:textColor="@color/white"
-            android:textSize="16sp"
+            android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="16sp"
             tools:text="Название файла.jpg" />
 
     </LinearLayout>
@@ -83,14 +83,31 @@
             android:orientation="horizontal">
 
             <ImageButton
+                android:id="@+id/rewindButton"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/circle_background_video"
+                android:contentDescription="Перемотать назад"
+                android:src="@drawable/ic_baseline_rewind_24" />
+
+            <ImageButton
                 android:id="@+id/playPauseButton"
                 android:layout_width="64dp"
                 android:layout_height="64dp"
-                android:src="@drawable/ic_baseline_play_arrow_24"
                 android:background="@drawable/circle_background_video"
                 android:contentDescription="Воспроизвести"
+                android:src="@drawable/ic_baseline_play_arrow_24"
                 android:visibility="gone" />
 
+            <ImageButton
+                android:id="@+id/fastForwardButton"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_marginStart="16dp"
+                android:background="@drawable/circle_background_video"
+                android:contentDescription="Перемотать вперед"
+                android:src="@drawable/ic_baseline_fast_forward_24" />
         </LinearLayout>
 
 
