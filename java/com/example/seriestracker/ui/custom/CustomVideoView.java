@@ -170,10 +170,11 @@ public class CustomVideoView extends FrameLayout {
     private void centerVideo(MediaPlayer mp) {
         videoView.post(() -> {
             if (mp != null) {
-                // Получаем размеры видео
+            // Проверяем, что MediaPlayer находится в состоянии Prepared или Started
+            // перед вызовом getVideoWidth() и getVideoHeight()
+            try {
                 int videoWidth = mp.getVideoWidth();
                 int videoHeight = mp.getVideoHeight();
-
                 Log.d("CustomVideoView", "Video dimensions - width: " + videoWidth + ", height: " + videoHeight);
 
                 if (videoWidth > 0 && videoHeight > 0) {
@@ -211,130 +212,135 @@ public class CustomVideoView extends FrameLayout {
 
                     Log.d("CustomVideoView", "Video centered - padding: left=" + left + ", top=" + top + ", scale=" + scale);
                 }
+            } catch (IllegalStateException e) {
+                Log.e("CustomVideoView", "MediaPlayer is not in the proper state to get video dimensions", e);
+                // MediaPlayer может быть в неправильном состоянии, просто выходим без ошибки
+                return;
             }
-        });
-    }
+        }
+    });
+}
 
-    public void setOnCompletionListener(MediaPlayer.OnCompletionListener listener) {
-        videoView.setOnCompletionListener(listener);
-    }
+public void setOnCompletionListener(MediaPlayer.OnCompletionListener listener) {
+    videoView.setOnCompletionListener(listener);
+}
 
-    public void start() {
-        Log.d("CustomVideoView", "Starting video playback");
-        videoView.start();
-    }
+public void start() {
+    Log.d("CustomVideoView", "Starting video playback");
+    videoView.start();
+}
 
-    public void pause() {
-        Log.d("CustomVideoView", "Pausing video playback");
-        videoView.pause();
-    }
+public void pause() {
+    Log.d("CustomVideoView", "Pausing video playback");
+    videoView.pause();
+}
 
-    public void stopPlayback() {
-        Log.d("CustomVideoView", "Stopping video playback");
-        videoView.stopPlayback();
-        currentMediaPlayer = null;
-        // Показываем превью после остановки
-        showThumbnail();
-    }
+public void stopPlayback() {
+    Log.d("CustomVideoView", "Stopping video playback");
+    videoView.stopPlayback();
+    currentMediaPlayer = null;
+    // Показываем превью после остановки
+    showThumbnail();
+}
 
-    public boolean isPlaying() {
-        return videoView.isPlaying();
-    }
+public boolean isPlaying() {
+    return videoView.isPlaying();
+}
 
-    public MediaPlayer getCurrentMediaPlayer() {
-        return currentMediaPlayer;
-    }
+public MediaPlayer getCurrentMediaPlayer() {
+    return currentMediaPlayer;
+}
 
-    public void seekTo(int position) {
-        videoView.seekTo(position);
-    }
+public void seekTo(int position) {
+    videoView.seekTo(position);
+}
 
-    public int getCurrentPosition() {
-        return videoView.getCurrentPosition();
-    }
+public int getCurrentPosition() {
+    return videoView.getCurrentPosition();
+}
 
-    public int getDuration() {
-        return videoView.getDuration();
-    }
+public int getDuration() {
+    return videoView.getDuration();
+}
 
-    public void setProgressBarVisible(boolean visible) {
-        progressBar.setVisibility(visible ? View.VISIBLE : View.GONE);
-    }
+public void setProgressBarVisible(boolean visible) {
+    progressBar.setVisibility(visible ? View.VISIBLE : View.GONE);
+}
 
-    public void showThumbnail() {
-        thumbnailView.setVisibility(View.VISIBLE);
-        videoView.setVisibility(View.GONE);
-        videoView.stopPlayback();
-    }
+public void showThumbnail() {
+    thumbnailView.setVisibility(View.VISIBLE);
+    videoView.setVisibility(View.GONE);
+    videoView.stopPlayback();
+}
 
-    public void hideThumbnail() {
-        thumbnailView.setVisibility(View.GONE);
-        videoView.setVisibility(View.VISIBLE);
-    }
+public void hideThumbnail() {
+    thumbnailView.setVisibility(View.GONE);
+    videoView.setVisibility(View.VISIBLE);
+}
 
-    public void setOnTouchListener(OnTouchListener listener) {
-        videoView.setOnTouchListener(listener);
-        thumbnailView.setOnTouchListener(listener);
-    }
+public void setOnTouchListener(OnTouchListener listener) {
+    videoView.setOnTouchListener(listener);
+    thumbnailView.setOnTouchListener(listener);
+}
 
-    // Метод для установки превью из видео файла (если нужно)
-    public void setVideoThumbnail(String videoUri) {
-        // Запускаем в фоновом потоке, чтобы не блокировать UI
-        new Thread(() -> {
-            try {
-                Log.d("CustomVideoView", "Setting video thumbnail from URI: " + videoUri);
+// Метод для установки превью из видео файла (если нужно)
+public void setVideoThumbnail(String videoUri) {
+    // Запускаем в фоновом потоке, чтобы не блокировать UI
+    new Thread(() -> {
+        try {
+            Log.d("CustomVideoView", "Setting video thumbnail from URI: " + videoUri);
 
-                // Используем MediaMetadataRetriever для получения превью
-                android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
-                retriever.setDataSource(videoUri, new HashMap<String, String>());
+            // Используем MediaMetadataRetriever для получения превью
+            android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
+            retriever.setDataSource(videoUri, new HashMap<String, String>());
 
-                // Получаем превью на 1 секунде
-                Bitmap bitmap = retriever.getFrameAtTime(1000000); // 1 секунда в микросекундах
+            // Получаем превью на 1 секунде
+            Bitmap bitmap = retriever.getFrameAtTime(1000000); // 1 секунда в микросекундах
 
-                if (bitmap != null) {
-                    // Возвращаемся в UI поток для обновления ImageView
-                    post(() -> {
-                        thumbnailView.setImageBitmap(bitmap);
-                        // Применяем поворот к превью
-                        thumbnailView.setRotation(currentRotation);
-                        Log.d("CustomVideoView", "Video thumbnail loaded successfully");
-                    });
-                } else {
-                    // Если не удалось получить превью, показываем иконку видео
-                    post(() -> {
-                        thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
-                        // Применяем поворот к превью
-                        thumbnailView.setRotation(currentRotation);
-                        Log.d("CustomVideoView", "Video thumbnail not available, using default icon");
-                    });
-                }
-
-                retriever.release();
-            } catch (Exception e) {
-                Log.e("CustomVideoView", "Error loading video thumbnail: " + e.getMessage(), e);
+            if (bitmap != null) {
+                // Возвращаемся в UI поток для обновления ImageView
+                post(() -> {
+                    thumbnailView.setImageBitmap(bitmap);
+                    // Применяем поворот к превью
+                    thumbnailView.setRotation(currentRotation);
+                    Log.d("CustomVideoView", "Video thumbnail loaded successfully");
+                });
+            } else {
+                // Если не удалось получить превью, показываем иконку видео
                 post(() -> {
                     thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
+                    // Применяем поворот к превью
                     thumbnailView.setRotation(currentRotation);
+                    Log.d("CustomVideoView", "Video thumbnail not available, using default icon");
                 });
             }
-        }).start();
-    }
 
-    // Альтернативный метод с использованием URI
-    public void setVideoThumbnail(Uri videoUri) {
-        if (videoUri == null) return;
-        setVideoThumbnail(videoUri.toString());
-    }
+            retriever.release();
+        } catch (Exception e) {
+            Log.e("CustomVideoView", "Error loading video thumbnail: " + e.getMessage(), e);
+            post(() -> {
+                thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
+                thumbnailView.setRotation(currentRotation);
+            });
+        }
+    }).start();
+}
 
-    // Метод для сброса состояния
-    public void reset() {
-        stopPlayback();
-        showThumbnail();
-        progressBar.setVisibility(View.GONE);
-        currentMediaPlayer = null;
-        currentRotation = 0f;
-        videoView.setRotation(0f);
-        thumbnailView.setRotation(0f);
-        videoView.setPadding(0, 0, 0, 0);
-    }
+// Альтернативный метод с использованием URI
+public void setVideoThumbnail(Uri videoUri) {
+    if (videoUri == null) return;
+    setVideoThumbnail(videoUri.toString());
+}
+
+// Метод для сброса состояния
+public void reset() {
+    stopPlayback();
+    showThumbnail();
+    progressBar.setVisibility(View.GONE);
+    currentMediaPlayer = null;
+    currentRotation = 0f;
+    videoView.setRotation(0f);
+    thumbnailView.setRotation(0f);
+    videoView.setPadding(0, 0, 0, 0);
+}
 }
