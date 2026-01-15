@@ -7,20 +7,29 @@
     android:background="@android:color/black"
     tools:context=".ui.screens.MediaViewerFragment">
 
-    <!-- Кастомный видео плеер с обложкой -->
-    <com.example.seriestracker.ui.custom.CustomVideoView
-        android:id="@+id/customVideoView"
+    <!-- Контейнер для видео -->
+    <FrameLayout
+        android:id="@+id/videoContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone" />
+        android:layout_height="match_parent">
 
-    <!-- Изображение -->
-    <ImageView
-        android:id="@+id/imageView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="fitCenter"
-        android:visibility="gone" />
+        <!-- Кастомный видео плеер -->
+        <com.example.seriestracker.ui.custom.CustomVideoView
+            android:id="@+id/customVideoView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
+
+        <!-- Изображение -->
+        <ImageView
+            android:id="@+id/imageView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
     <!-- Верхняя панель -->
     <LinearLayout
@@ -68,13 +77,14 @@
         android:orientation="vertical"
         android:padding="16dp"
         android:visibility="gone">
-        <!-- Бегунок прогресса -->
+
+        <!-- Бегунок прогресса (ТОЛЬКО для видео) -->
         <SeekBar
             android:id="@+id/seekBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp" />
-
+            android:layout_marginBottom="8dp"
+            android:visibility="gone" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -108,12 +118,21 @@
                 android:background="@drawable/circle_background_video"
                 android:contentDescription="Перемотать вперед"
                 android:src="@drawable/ic_baseline_fast_forward_24" />
-        </LinearLayout>
 
+            <!-- Кнопка поворота -->
+            <ImageButton
+                android:id="@+id/rotateButton"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:layout_marginStart="16dp"
+                android:background="@drawable/circle_background_video"
+                android:contentDescription="Поворот на 90 градусов"
+                android:src="@drawable/ic_baseline_rotate_right_24" />
+        </LinearLayout>
 
     </LinearLayout>
 
-    <!-- Прогресс бар (отдельно для изображений) -->
+    <!-- Прогресс бар -->
     <ProgressBar
         android:id="@+id/progressBar"
         android:layout_width="48dp"
