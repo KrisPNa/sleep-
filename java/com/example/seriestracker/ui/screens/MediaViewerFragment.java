@@ -9,6 +9,7 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -35,17 +36,18 @@ public class MediaViewerFragment extends Fragment {
     private static final String ARG_MEDIA_FILES = "media_files";
     private static final String ARG_POSITION = "position";
 
+    private FrameLayout videoContainer;
     private CustomVideoView customVideoView;
     private ImageView imageView;
     private ImageButton closeButton;
     private ImageButton playPauseButton;
     private ImageButton rewindButton;
     private ImageButton fastForwardButton;
+    private ImageButton rotateButton;
     private ProgressBar progressBar;
     private TextView fileNameTextView;
     private LinearLayout videoControls;
     private SeekBar seekBar;
-
 
     private List<MediaFile> mediaFiles;
     private int currentPosition;
@@ -55,6 +57,9 @@ public class MediaViewerFragment extends Fragment {
     private Runnable hideControlsRunnable;
 
     private OnSwipeTouchListener swipeListener;
+
+    // Переменная для управления поворотом
+    private float rotationAngle = 0f;
 
     public static MediaViewerFragment newInstance(ArrayList<MediaFile> mediaFiles, int position) {
         MediaViewerFragment fragment = new MediaViewerFragment();
@@ -87,12 +92,14 @@ public class MediaViewerFragment extends Fragment {
     }
 
     private void initViews(View view) {
+        videoContainer = view.findViewById(R.id.videoContainer);
         customVideoView = view.findViewById(R.id.customVideoView);
         imageView = view.findViewById(R.id.imageView);
         closeButton = view.findViewById(R.id.closeButton);
         playPauseButton = view.findViewById(R.id.playPauseButton);
         rewindButton = view.findViewById(R.id.rewindButton);
         fastForwardButton = view.findViewById(R.id.fastForwardButton);
+        rotateButton = view.findViewById(R.id.rotateButton);
         progressBar = view.findViewById(R.id.progressBar);
         fileNameTextView = view.findViewById(R.id.fileNameTextView);
         videoControls = view.findViewById(R.id.videoControls);
@@ -111,14 +118,14 @@ public class MediaViewerFragment extends Fragment {
                 playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
                 isVideoPlaying = false;
                 showControls();
-                removeUpdateSeekBarCallback(); // Остановить обновление бегунка при паузе
+                removeUpdateSeekBarCallback();
             } else {
                 if (customVideoView.getCurrentMediaPlayer() != null) {
                     customVideoView.start();
                     playPauseButton.setImageResource(R.drawable.ic_baseline_pause_24);
                     isVideoPlaying = true;
                     hideControlsDelayed();
-                    startUpdateSeekBarCallback(); // Начать обновление бегунка при воспроизведении
+                    startUpdateSeekBarCallback();
                 } else {
                     Toast.makeText(getContext(), "Видео загружается...", Toast.LENGTH_SHORT).show();
                 }
@@ -128,13 +135,9 @@ public class MediaViewerFragment extends Fragment {
         rewindButton.setOnClickListener(v -> {
             if (customVideoView.getCurrentMediaPlayer() != null) {
                 int currentPosition = customVideoView.getCurrentPosition();
-                int newPosition = Math.max(0, currentPosition - 10000); // Перемотка на 10 секунд назад
+                int newPosition = Math.max(0, currentPosition - 10000);
                 customVideoView.seekTo(newPosition);
-
-                // Обновляем позицию на бегунке
                 seekBar.setProgress(newPosition);
-
-                // Если видео было остановлено, показываем элементы управления
                 if (!customVideoView.isPlaying()) {
                     showControls();
                 }
@@ -145,19 +148,21 @@ public class MediaViewerFragment extends Fragment {
             if (customVideoView.getCurrentMediaPlayer() != null) {
                 int currentPosition = customVideoView.getCurrentPosition();
                 int duration = customVideoView.getDuration();
-                int newPosition = Math.min(duration, currentPosition + 10000); // Перемотка на 10 секунд вперед
+                int newPosition = Math.min(duration, currentPosition + 10000);
                 customVideoView.seekTo(newPosition);
-
-                // Обновляем позицию на бегунке
                 seekBar.setProgress(newPosition);
-
-                // Если видео было остановлено, показываем элементы управления
                 if (!customVideoView.isPlaying()) {
                     showControls();
                 }
             }
         });
-        // Установка обработчика для SeekBar
+
+        // Обработчик для кнопки поворота
+        rotateButton.setOnClickListener(v -> {
+            rotateMedia();
+        });
+
+        // Обработчик для SeekBar
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -168,7 +173,6 @@ public class MediaViewerFragment extends Fragment {
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-                // При начале перетаскивания бегунка - приостанавливаем воспроизведение
                 if (customVideoView.isPlaying()) {
                     customVideoView.pause();
                 }
@@ -176,12 +180,12 @@ public class MediaViewerFragment extends Fragment {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                // При завершении перетаскивания - возобновляем воспроизведение
                 if (!customVideoView.isPlaying() && isVideoPlaying) {
                     customVideoView.start();
                 }
             }
         });
+
         customVideoView.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
             @Override
             public void onPrepared(MediaPlayer mp) {
@@ -193,14 +197,16 @@ public class MediaViewerFragment extends Fragment {
                 fastForwardButton.setVisibility(View.VISIBLE);
                 playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
 
-                // Настройка SeekBar
+                // Настройка SeekBar для видео
+                seekBar.setVisibility(View.VISIBLE);
                 seekBar.setMax(mp.getDuration());
                 seekBar.setProgress(0);
 
                 isVideoPlaying = false;
                 showControls();
 
-                // Начинаем обновление бегунка при воспроизведении
+                // Применяем текущий угол поворота к видео
+                applyRotation();
                 startUpdateSeekBarCallback();
             }
         });
@@ -215,6 +221,9 @@ public class MediaViewerFragment extends Fragment {
                 rewindButton.setVisibility(View.VISIBLE);
                 fastForwardButton.setVisibility(View.VISIBLE);
                 playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
+
+                // Показываем SeekBar даже при ошибке видео
+                seekBar.setVisibility(View.VISIBLE);
 
                 String errorMsg = "Ошибка воспроизведения видео";
                 if (what == MediaPlayer.MEDIA_ERROR_UNKNOWN) {
@@ -234,7 +243,7 @@ public class MediaViewerFragment extends Fragment {
                 playPauseButton.setImageResource(R.drawable.ic_baseline_replay_24);
                 isVideoPlaying = false;
                 showControls();
-                removeUpdateSeekBarCallback(); // Остановить обновление бегунка при завершении видео
+                removeUpdateSeekBarCallback();
             }
         });
 
@@ -263,22 +272,18 @@ public class MediaViewerFragment extends Fragment {
             }
         });
 
-        // Настраиваем обработчик касаний для VideoView
+        // Обработчик касаний для VideoView
         customVideoView.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                // Сначала передаем событие жестовому детектору
                 if (swipeListener != null) {
                     boolean handledByGesture = swipeListener.onTouch(v, event);
-
-                    // Если жесты не обработали событие, то обрабатываем касания
                     if (!handledByGesture && event.getAction() == MotionEvent.ACTION_UP) {
                         toggleControls();
                     }
-                    return true; // Всегда возвращаем true, чтобы получать все события
+                    return true;
                 }
 
-                // Если жестовый детектор не инициализирован, обрабатываем касания
                 if (event.getAction() == MotionEvent.ACTION_UP) {
                     toggleControls();
                 }
@@ -287,8 +292,34 @@ public class MediaViewerFragment extends Fragment {
         });
     }
 
+    private void rotateMedia() {
+        // Изменяем угол поворота
+        rotationAngle += 90f;
+        if (rotationAngle >= 360f) {
+            rotationAngle = 0f;
+        }
+
+        // Применяем поворот
+        applyRotation();
+
+        Log.d("MediaViewer", "Rotated to: " + rotationAngle + " degrees");
+    }
+
+    private void applyRotation() {
+        if (customVideoView.getVisibility() == View.VISIBLE) {
+            // Используем метод из CustomVideoView для поворота видео
+            customVideoView.setVideoRotation(rotationAngle);
+
+        } else if (imageView.getVisibility() == View.VISIBLE) {
+            // Поворачиваем изображение
+            imageView.setRotation(rotationAngle);
+
+            // Устанавливаем режим масштабирования для изображений
+            imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        }
+    }
+
     private void setupGestures(View view) {
-        // Создаем анонимный класс OnSwipeTouchListener
         swipeListener = new OnSwipeTouchListener(requireContext()) {
             @Override
             public void onSwipeRight() {
@@ -320,7 +351,6 @@ public class MediaViewerFragment extends Fragment {
                 requireActivity().getSupportFragmentManager().popBackStack();
             }
 
-            // УБИРАЕМ @Override - это НЕ переопределение, а реализация абстрактного метода
             public void onDoubleTapPerformed() {
                 if (customVideoView.getVisibility() == View.VISIBLE) {
                     if (customVideoView.isPlaying()) {
@@ -340,7 +370,6 @@ public class MediaViewerFragment extends Fragment {
             }
         };
 
-        // Устанавливаем слушатель для всей view
         view.setOnTouchListener(swipeListener);
     }
 
@@ -349,7 +378,6 @@ public class MediaViewerFragment extends Fragment {
             return;
         }
 
-        // Остановить обновление бегунка для предыдущего видео
         removeUpdateSeekBarCallback();
 
         MediaFile mediaFile = mediaFiles.get(position);
@@ -358,15 +386,22 @@ public class MediaViewerFragment extends Fragment {
         fileNameTextView.setText(mediaFile.getFileName());
         Log.d("MediaViewer", "Showing media at position " + position + ": " + mediaFile.getFileName());
 
+        // Сброс параметров перед показом нового медиа
+        resetViewParameters();
+
         if (mediaFile.getFileType().equals("video")) {
+            // Показываем видео
             imageView.setVisibility(View.GONE);
             customVideoView.setVisibility(View.VISIBLE);
             videoControls.setVisibility(View.VISIBLE);
 
+            // Настраиваем элементы управления для видео
+            rotateButton.setVisibility(View.VISIBLE);
             progressBar.setVisibility(View.VISIBLE);
             playPauseButton.setVisibility(View.GONE);
             rewindButton.setVisibility(View.GONE);
             fastForwardButton.setVisibility(View.GONE);
+            seekBar.setVisibility(View.GONE);
 
             String videoUri = mediaFile.getFileUri();
             Log.d("MediaViewer", "Video URI: " + videoUri);
@@ -402,6 +437,9 @@ public class MediaViewerFragment extends Fragment {
 
                     customVideoView.setVideoURI(uri);
 
+                    // Применяем текущий поворот
+                    applyRotation();
+
                 } catch (Exception e) {
                     Log.e("MediaViewer", "Error setting video URI: " + e.getMessage(), e);
                     Toast.makeText(getContext(), "Ошибка загрузки видео: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -414,9 +452,17 @@ public class MediaViewerFragment extends Fragment {
             }
 
         } else {
+            // Показываем изображение
             Log.d("MediaViewer", "Showing image");
             customVideoView.setVisibility(View.GONE);
-            videoControls.setVisibility(View.GONE);
+            videoControls.setVisibility(View.VISIBLE);
+
+            // Настраиваем элементы управления для изображения
+            playPauseButton.setVisibility(View.GONE);
+            rewindButton.setVisibility(View.GONE);
+            fastForwardButton.setVisibility(View.GONE);
+            rotateButton.setVisibility(View.VISIBLE);
+            seekBar.setVisibility(View.GONE);
             imageView.setVisibility(View.VISIBLE);
 
             try {
@@ -424,11 +470,28 @@ public class MediaViewerFragment extends Fragment {
                         .load(Uri.parse(mediaFile.getFileUri()))
                         .error(R.drawable.ic_baseline_image_24)
                         .into(imageView);
+
+                // Применяем текущий поворот
+                applyRotation();
+
             } catch (Exception e) {
                 imageView.setImageResource(R.drawable.ic_baseline_image_24);
                 Log.e("MediaViewer", "Error loading image: " + e.getMessage(), e);
+                applyRotation();
             }
         }
+    }
+
+    private void resetViewParameters() {
+        // Сбрасываем параметры изображения
+        ViewGroup.LayoutParams imageParams = imageView.getLayoutParams();
+        imageParams.width = ViewGroup.LayoutParams.MATCH_PARENT;
+        imageParams.height = ViewGroup.LayoutParams.MATCH_PARENT;
+        imageView.setLayoutParams(imageParams);
+        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+
+        // Сбрасываем поворот для CustomVideoView (он сам управляет своим состоянием)
+        // Не вызываем setScaleType для CustomVideoView - его не существует
     }
 
     private void toggleControls() {
@@ -481,15 +544,12 @@ public class MediaViewerFragment extends Fragment {
                     if (customVideoView != null && customVideoView.getCurrentMediaPlayer() != null && isVideoPlaying) {
                         int currentPosition = customVideoView.getCurrentPosition();
                         seekBar.setProgress(currentPosition);
-
-                        // Продолжаем обновлять бегунок каждые 1000 мс
                         handler.postDelayed(this, 1000);
                     }
                 }
             };
         }
 
-        // Убедимся, что предыдущий runnable удален перед запуском нового
         removeUpdateSeekBarCallback();
         handler.post(updateSeekBarRunnable);
     }
@@ -507,8 +567,6 @@ public class MediaViewerFragment extends Fragment {
         if (customVideoView.isPlaying()) {
             customVideoView.pause();
         }
-
-        // Остановить обновление бегунка при паузе фрагмента
         removeUpdateSeekBarCallback();
     }
 
@@ -519,7 +577,6 @@ public class MediaViewerFragment extends Fragment {
         if (customVideoView.isPlaying()) {
             customVideoView.stopPlayback();
         }
-        // Остановить обновление бегунка при уничтожении фрагмента
         removeUpdateSeekBarCallback();
 
         if (hideControlsRunnable != null) {

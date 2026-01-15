@@ -27,6 +27,7 @@ public class CustomVideoView extends FrameLayout {
     private MediaPlayer.OnInfoListener infoListener;
     private MediaPlayer.OnErrorListener errorListener;
     private MediaPlayer currentMediaPlayer;
+    private float currentRotation = 0f; // Добавляем переменную для поворота
 
     public CustomVideoView(Context context) {
         super(context);
@@ -112,6 +113,22 @@ public class CustomVideoView extends FrameLayout {
         videoView.requestFocus();
     }
 
+    // Метод для установки поворота
+    public void setVideoRotation(float rotation) {
+        this.currentRotation = rotation;
+        videoView.setRotation(rotation);
+        thumbnailView.setRotation(rotation);
+
+        // После поворота нужно пересчитать центрирование
+        if (currentMediaPlayer != null) {
+            centerVideo(currentMediaPlayer);
+        }
+    }
+
+    public float getVideoRotation() {
+        return currentRotation;
+    }
+
     public void setThumbnail(String imageUri) {
         if (imageUri != null && !imageUri.isEmpty()) {
             Glide.with(getContext())
@@ -125,6 +142,10 @@ public class CustomVideoView extends FrameLayout {
         videoView.setOnPreparedListener(mp -> {
             Log.d("CustomVideoView", "Video prepared - width: " + mp.getVideoWidth() + ", height: " + mp.getVideoHeight());
             currentMediaPlayer = mp;
+
+            // Применяем текущий поворот
+            videoView.setRotation(currentRotation);
+
             if (preparedListener != null) {
                 preparedListener.onPrepared(mp);
             }
@@ -133,7 +154,7 @@ public class CustomVideoView extends FrameLayout {
             videoView.setVisibility(View.VISIBLE);
             progressBar.setVisibility(View.GONE);
 
-            // Центрировать видео
+            // Центрировать видео с учетом поворота
             centerVideo(mp);
         });
     }
@@ -156,11 +177,21 @@ public class CustomVideoView extends FrameLayout {
                 Log.d("CustomVideoView", "Video dimensions - width: " + videoWidth + ", height: " + videoHeight);
 
                 if (videoWidth > 0 && videoHeight > 0) {
+                    // Учитываем поворот - если видео повернуто на 90 или 270 градусов,
+                    // меняем ширину и высоту местами для правильного расчета
+                    boolean isRotated90 = Math.abs(currentRotation % 180) == 90;
+                    if (isRotated90) {
+                        // Меняем ширину и высоту местами для повернутого видео
+                        int temp = videoWidth;
+                        videoWidth = videoHeight;
+                        videoHeight = temp;
+                    }
+
                     // Получаем размеры VideoView
                     int viewWidth = videoView.getWidth();
                     int viewHeight = videoView.getHeight();
 
-                    Log.d("CustomVideoView", "View dimensions - width: " + viewWidth + ", height: " + viewHeight);
+                    Log.d("CustomVideoView", "View dimensions - width: " + viewWidth + ", height: " + viewHeight + ", isRotated90: " + isRotated90);
 
                     // Вычисляем масштаб
                     float widthRatio = (float) viewWidth / videoWidth;
@@ -178,7 +209,7 @@ public class CustomVideoView extends FrameLayout {
                     // Устанавливаем отступы
                     videoView.setPadding(left, top, left, top);
 
-                    Log.d("CustomVideoView", "Video centered - padding: left=" + left + ", top=" + top);
+                    Log.d("CustomVideoView", "Video centered - padding: left=" + left + ", top=" + top + ", scale=" + scale);
                 }
             }
         });
@@ -264,12 +295,16 @@ public class CustomVideoView extends FrameLayout {
                     // Возвращаемся в UI поток для обновления ImageView
                     post(() -> {
                         thumbnailView.setImageBitmap(bitmap);
+                        // Применяем поворот к превью
+                        thumbnailView.setRotation(currentRotation);
                         Log.d("CustomVideoView", "Video thumbnail loaded successfully");
                     });
                 } else {
                     // Если не удалось получить превью, показываем иконку видео
                     post(() -> {
                         thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
+                        // Применяем поворот к превью
+                        thumbnailView.setRotation(currentRotation);
                         Log.d("CustomVideoView", "Video thumbnail not available, using default icon");
                     });
                 }
@@ -279,6 +314,7 @@ public class CustomVideoView extends FrameLayout {
                 Log.e("CustomVideoView", "Error loading video thumbnail: " + e.getMessage(), e);
                 post(() -> {
                     thumbnailView.setImageResource(R.drawable.ic_baseline_videocam_24);
+                    thumbnailView.setRotation(currentRotation);
                 });
             }
         }).start();
@@ -296,5 +332,9 @@ public class CustomVideoView extends FrameLayout {
         showThumbnail();
         progressBar.setVisibility(View.GONE);
         currentMediaPlayer = null;
+        currentRotation = 0f;
+        videoView.setRotation(0f);
+        thumbnailView.setRotation(0f);
+        videoView.setPadding(0, 0, 0, 0);
     }
 }
