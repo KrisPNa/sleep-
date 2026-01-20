@@ -8,6 +8,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_random"
+        android:icon="@drawable/ic_baseline_shuffle_24"
+        android:title="Случайный сериал"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_edit"
         android:icon="@drawable/ic_baseline_edit_24"
         android:title="Редактировать"
@@ -19,10 +25,6 @@
         android:title="Удалить"
         app:showAsAction="never" />
 
-    <item
-        android:id="@+id/action_random"
-        android:icon="@drawable/ic_baseline_shuffle_24"
-        android:title="Случайный сериал"
-        app:showAsAction="never" />
+
 
 </menu>
