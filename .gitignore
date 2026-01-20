@@ -1,28 +1,43 @@
 ```
-# Java build artifacts
+# Compiled and build artifacts
 *.class
-*.jar
-*.war
-*.ear
-
-# Build directories
-build/
-target/
-
-# IDE files
-.idea/
-*.iml
-*.ipr
-*.iws
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
 
 # Dependencies
 lib/
 libs/
+target/
+build/
 
-# Logs
+# Logs and temp files
 *.log
-
-# Temporary files
 *.tmp
-*.temp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Backup and temporary files
+*.bak
+*.tmp
+*~
 ```
