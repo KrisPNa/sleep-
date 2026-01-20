@@ -16,6 +16,7 @@ public class Series {
     private long createdAt;
 
     // Новые поля
+    private String description;
     private String status;
     private boolean isFavorite;
     private int rating;
@@ -45,6 +46,7 @@ public class Series {
     public String getImageUri() { return imageUri; }
     public boolean getIsWatched() { return isWatched; }
     public String getNotes() { return notes; }
+    public String getDescription() { return description; }
     public long getCreatedAt() { return createdAt; }
     public String getStatus() { return status; }
     public boolean getIsFavorite() { return isFavorite; }
@@ -59,6 +61,7 @@ public class Series {
     public void setImageUri(String imageUri) { this.imageUri = imageUri; }
     public void setIsWatched(boolean watched) { this.isWatched = watched; }
     public void setNotes(String notes) { this.notes = notes; }
+    public void setDescription(String description) { this.description = description; }
     public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
     public void setStatus(String status) { this.status = status; }
     public void setIsFavorite(boolean favorite) { this.isFavorite = favorite; }
@@ -66,4 +69,6 @@ public class Series {
     public void setGenre(String genre) { this.genre = genre; }
     public void setSeasons(int seasons) { this.seasons = seasons; }
     public void setEpisodes(int episodes) { this.episodes = episodes; }
+
+
 }
