@@ -255,6 +255,9 @@ public class CollectionDetailScreen extends Fragment {
                 } else if (itemId == R.id.action_delete) { // Удалить
                     deleteCollection();
                     return true;
+                } else if (itemId == R.id.action_random) { // Случайный сериал
+                    showRandomSeriesFromCollection();
+                    return true;
                 }
                 return false;
             });
@@ -363,11 +366,34 @@ public class CollectionDetailScreen extends Fragment {
 
         dialog.show();
     }
+
     private void openEditSeriesScreen(Series series) {
         EditSeriesScreen editScreen = EditSeriesScreen.newInstance(series.getId());
         requireActivity().getSupportFragmentManager().beginTransaction()
                 .replace(R.id.fragment_container, editScreen)
                 .addToBackStack(null)
                 .commit();
+
+
+    }
+
+    private void showRandomSeriesFromCollection() {
+        // Get series in the current collection and pick one randomly
+        viewModel.getSeriesInCollection(collectionId).observe(getViewLifecycleOwner(), seriesList -> {
+            if (seriesList != null && !seriesList.isEmpty()) {
+                // Generate a random index
+                int randomIndex = (int) (Math.random() * seriesList.size());
+                Series randomSeries = seriesList.get(randomIndex);
+
+                // Show the random series by opening the edit screen
+                openEditSeriesScreen(randomSeries);
+
+                // Remove observer to prevent multiple calls
+                viewModel.getSeriesInCollection(collectionId).removeObservers(getViewLifecycleOwner());
+            } else {
+                // No series in collection
+                Toast.makeText(getContext(), "В коллекции нет сериалов", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }
