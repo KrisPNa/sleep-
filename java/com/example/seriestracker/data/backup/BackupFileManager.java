@@ -30,26 +30,29 @@ public class BackupFileManager {
                 }
             }
 
-            // Используем оригинальное имя файла без добавления счетчика
+            // Используем оригинальное имя файла
             String finalFileName = fileName;
             File destinationFile = new File(backupFilesDir, finalFileName);
 
-            // При создании новой резервной копии просто копируем файл с оригинальным именем, не проверяя дубликаты
-            // Если файл с таким именем уже существует, генерируем уникальное имя с UUID
-            if (destinationFile.exists()) {
-                String nameWithoutExtension = "";
-                String extension = "";
-                int dotIndex = fileName.lastIndexOf('.');
-                if (dotIndex > 0) {
-                    nameWithoutExtension = fileName.substring(0, dotIndex);
-                    extension = fileName.substring(dotIndex);
-                } else {
-                    nameWithoutExtension = fileName;
-                    extension = "";
-                }
+            // Если файл с таким именем уже существует, добавляем номер в конце
+            int counter = 1;
+            String nameWithoutExtension = "";
+            String extension = "";
+            int dotIndex = fileName.lastIndexOf('.');
 
-                finalFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
+            if (dotIndex > 0) {
+                nameWithoutExtension = fileName.substring(0, dotIndex);
+                extension = fileName.substring(dotIndex);
+            } else {
+                nameWithoutExtension = fileName;
+                extension = "";
+            }
+
+            // Проверяем и создаем уникальное имя, если файл уже существует
+            while (destinationFile.exists()) {
+                finalFileName = nameWithoutExtension + " (" + counter + ")" + extension;
                 destinationFile = new File(backupFilesDir, finalFileName);
+                counter++;
             }
 
             // Копируем файл
@@ -76,7 +79,6 @@ public class BackupFileManager {
             return null;
         }
     }
-
     /**
      * Копирует файл из внутреннего хранилища приложения во временный каталог резервной копии
      */
@@ -97,26 +99,37 @@ public class BackupFileManager {
                 }
             }
 
-            // Используем оригинальное имя файла без добавления счетчика
-            String finalFileName = fileName;
+            // Если имя файла передано как пустое или null, извлекаем оригинальное имя из пути к исходному файлу
+            String finalFileName;
+            if (fileName == null || fileName.isEmpty()) {
+                // Извлекаем оригинальное имя файла из UUID-префиксированного имени в пути
+                String sourceFileName = sourceFile.getName();
+                finalFileName = extractOriginalFilenameFromPrefixed(sourceFileName);
+            } else {
+                finalFileName = fileName;
+            }
+
             File destinationFile = new File(backupFilesDir, finalFileName);
 
-            // При создании новой резервной копии просто копируем файл с оригинальным именем, не проверяя дубликаты
-            // Если файл с таким именем уже существует, генерируем уникальное имя с UUID
-            if (destinationFile.exists()) {
-                String nameWithoutExtension = "";
-                String extension = "";
-                int dotIndex = fileName.lastIndexOf('.');
-                if (dotIndex > 0) {
-                    nameWithoutExtension = fileName.substring(0, dotIndex);
-                    extension = fileName.substring(dotIndex);
-                } else {
-                    nameWithoutExtension = fileName;
-                    extension = "";
-                }
+            // Если файл с таким именем уже существует, добавляем номер в конце
+            int counter = 1;
+            String nameWithoutExtension = "";
+            String extension = "";
+            int dotIndex = finalFileName.lastIndexOf('.');
 
-                finalFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
+            if (dotIndex > 0) {
+                nameWithoutExtension = finalFileName.substring(0, dotIndex);
+                extension = finalFileName.substring(dotIndex);
+            } else {
+                nameWithoutExtension = finalFileName;
+                extension = "";
+            }
+
+            // Проверяем и создаем уникальное имя, если файл уже существует
+            while (destinationFile.exists()) {
+                finalFileName = nameWithoutExtension + " (" + counter + ")" + extension;
                 destinationFile = new File(backupFilesDir, finalFileName);
+                counter++;
             }
 
             // Копируем файл
@@ -138,7 +151,6 @@ public class BackupFileManager {
             return null;
         }
     }
-
     /**
      * Восстанавливает файл из резервной копии во внутреннее хранилище приложения
      */
@@ -159,12 +171,32 @@ public class BackupFileManager {
                 }
             }
 
-            // Извлекаем имя файла из относительного пути (берем только имя файла после "files/")
-            String fileName = extractFileName(relativeFilePath);
+            // Извлекаем оригинальное имя файла из относительного пути
+            String fileName = extractOriginalFileName(relativeFilePath);
 
-            // Генерируем уникальное имя файла
-            String uniqueFileName = UUID.randomUUID().toString() + "_" + fileName;
-            File destinationFile = new File(mediaDir, uniqueFileName);
+            // Сохраняем с оригинальным именем (без UUID префикса)
+            File destinationFile = new File(mediaDir, fileName);
+
+            // Если файл с таким именем уже существует, добавляем номер
+            int counter = 1;
+            String nameWithoutExtension = "";
+            String extension = "";
+            int dotIndex = fileName.lastIndexOf('.');
+
+            if (dotIndex > 0) {
+                nameWithoutExtension = fileName.substring(0, dotIndex);
+                extension = fileName.substring(dotIndex);
+            } else {
+                nameWithoutExtension = fileName;
+                extension = "";
+            }
+
+            // Проверяем и создаем уникальное имя, если файл уже существует
+            while (destinationFile.exists()) {
+                fileName = nameWithoutExtension + " (" + counter + ")" + extension;
+                destinationFile = new File(mediaDir, fileName);
+                counter++;
+            }
 
             // Копируем файл
             try (FileInputStream inputStream = new FileInputStream(sourceFile);
@@ -185,23 +217,37 @@ public class BackupFileManager {
             return null;
         }
     }
-
     /**
      * Извлекает оригинальное имя файла из пути в формате "files/filename.ext"
      */
     private static String extractOriginalFileName(String relativeFilePath) {
         if (relativeFilePath.startsWith("files/")) {
             String fileName = relativeFilePath.substring(6); // Убираем "files/"
-            int lastUnderscore = fileName.indexOf('_');
-            if (lastUnderscore > 0 && lastUnderscore < fileName.length() - 1) {
-                // Восстанавливаем оригинальное имя файла, пропуская UUID префикс
-                return fileName.substring(lastUnderscore + 1);
+
+            // Убираем номер в скобках, если он есть (например "photo (1).jpg")
+            // Оставляем только оригинальное имя до первого пробела и скобки
+            int bracketIndex = fileName.indexOf(" (");
+            if (bracketIndex > 0) {
+                // Проверяем, есть ли закрывающая скобка после номера
+                int closeBracketIndex = fileName.indexOf(")", bracketIndex);
+                if (closeBracketIndex > bracketIndex) {
+                    // Извлекаем расширение
+                    String extension = "";
+                    int dotIndex = fileName.lastIndexOf('.');
+                    if (dotIndex > closeBracketIndex) {
+                        extension = fileName.substring(dotIndex);
+                        return fileName.substring(0, bracketIndex) + extension;
+                    } else {
+                        return fileName.substring(0, bracketIndex);
+                    }
+                }
             }
+
+            // Если нет скобок с номером, возвращаем как есть
             return fileName;
         }
         return relativeFilePath;
     }
-
     /**
      * Извлекает имя файла из пути в формате "files/filename.ext", возвращая только имя файла
      */
@@ -211,6 +257,25 @@ public class BackupFileManager {
         }
         return relativeFilePath;
     }
+
+    /**
+     * Извлекает оригинальное имя файла из UUID-префиксированного имени файла
+     */
+    public static String extractOriginalFilenameFromPrefixed(String prefixedFilename) {
+        if (prefixedFilename == null) {
+            return null;
+        }
+
+        int underscoreIndex = prefixedFilename.indexOf('_');
+        if (underscoreIndex > 0 && underscoreIndex < prefixedFilename.length() - 1) {
+            // Возвращаем часть после первого подчеркивания (это оригинальное имя файла)
+            return prefixedFilename.substring(underscoreIndex + 1);
+        }
+        // Если нет подчеркивания, возвращаем оригинальное имя
+        return prefixedFilename;
+    }
+
+
     /**
      * Архивирует директорию резервной копии в ZIP файл
      */
@@ -263,6 +328,9 @@ public class BackupFileManager {
         }
     }
 
+    /**
+     * Извлекает ZIP архив в директорию
+     */
     /**
      * Извлекает ZIP архив в директорию
      */
