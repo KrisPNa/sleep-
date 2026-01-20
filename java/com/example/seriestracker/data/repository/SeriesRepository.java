@@ -5,6 +5,7 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.lifecycle.LiveData;
 
@@ -449,5 +450,18 @@ public class SeriesRepository {
 
     public LiveData<Boolean> doesCollectionExistExcludeId(String collectionName, long collectionId) {
         return seriesDao.doesCollectionExistExcludeId(collectionName, collectionId);
+    }
+
+    // Синхронный метод для вставки медиафайла (для восстановления из резервной копии)
+    public long insertMediaFileSync(MediaFile mediaFile) {
+        try {
+            Future<Long> future = executor.submit(() ->
+                    seriesDao.insertMediaFile(mediaFile)
+            );
+            return future.get();
+        } catch (Exception e) {
+            Log.e("SeriesRepository", "Error inserting media file sync", e);
+            return -1;
+        }
     }
 }
