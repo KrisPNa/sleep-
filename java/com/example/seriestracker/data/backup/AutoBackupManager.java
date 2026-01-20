@@ -246,10 +246,17 @@ public class AutoBackupManager {
 
             // Move the files directory to permanent location
             File backupFilesDir = new File(tempBackupDir, "files");
-            File targetFilesDir = null; // Объявляем переменную здесь
+            File targetFilesDir = new File(backupDir, "files"); // Use consistent folder name instead of timestamped
 
             if (backupFilesDir.exists()) {
-                targetFilesDir = new File(backupDir, "files_" + timeStamp);
+                // Ensure target directory exists
+                if (!targetFilesDir.exists()) {
+                    if (!targetFilesDir.mkdirs()) {
+                        Log.e(TAG, "Failed to create target files directory: " + targetFilesDir.getAbsolutePath());
+                    }
+                }
+
+                // Copy files to the consistent "files" directory
                 if (!backupFilesDir.renameTo(targetFilesDir)) {
                     // If renameTo doesn't work, try to copy files
                     copyDirectory(backupFilesDir, targetFilesDir);

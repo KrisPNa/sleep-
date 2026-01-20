@@ -29,6 +29,19 @@ public class BackupFileManager {
                 }
             }
 
+            // Проверяем, существует ли уже такой файл в резервной копии
+            File[] existingFiles = backupFilesDir.listFiles();
+            if (existingFiles != null) {
+                for (File existingFile : existingFiles) {
+                    // Проверяем, есть ли уже файл с таким же оригинальным именем
+                    String existingOriginalName = extractOriginalFileName(existingFile.getName());
+                    if (existingOriginalName != null && existingOriginalName.equals(fileName)) {
+                        // Файл с таким именем уже существует, возвращаем его путь
+                        Log.d(TAG, "File with name " + fileName + " already exists in backup, reusing: " + existingFile.getName());
+                        return "files/" + existingFile.getName();
+                    }
+                }
+            }
             // Создаем уникальное имя файла, чтобы избежать конфликта имен
             String uniqueFileName = UUID.randomUUID().toString() + "_" + fileName;
             File destinationFile = new File(backupFilesDir, uniqueFileName);
@@ -78,6 +91,19 @@ public class BackupFileManager {
                 }
             }
 
+            // Проверяем, существует ли уже такой файл в резервной копии
+            File[] existingFiles = backupFilesDir.listFiles();
+            if (existingFiles != null) {
+                for (File existingFile : existingFiles) {
+                    // Проверяем, есть ли уже файл с таким же оригинальным именем
+                    String existingOriginalName = extractOriginalFileName(existingFile.getName());
+                    if (existingOriginalName != null && existingOriginalName.equals(fileName)) {
+                        // Файл с таким именем уже существует, возвращаем его путь
+                        Log.d(TAG, "File with name " + fileName + " already exists in backup, reusing: " + existingFile.getName());
+                        return "files/" + existingFile.getName();
+                    }
+                }
+            }
             // Создаем уникальное имя файла, чтобы избежать конфликта имен
             String uniqueFileName = UUID.randomUUID().toString() + "_" + fileName;
             File destinationFile = new File(backupFilesDir, uniqueFileName);
