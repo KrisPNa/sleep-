@@ -196,6 +196,7 @@ public class AutoBackupManager {
                 if (seriesItem.getImageUri() != null) {
                     try {
                         Uri imageUri = Uri.parse(seriesItem.getImageUri());
+
                         // Получаем оригинальное имя файла из URI
                         String originalFileName = getFileNameFromUri(context, imageUri);
                         if (originalFileName == null || originalFileName.isEmpty()) {
@@ -259,16 +260,14 @@ public class AutoBackupManager {
 
             if (backupFilesDir.exists()) {
 
-                // Ensure target directory exists and clean it for fresh backup
-                if (targetFilesDir.exists()) {
-                    deleteDirectory(targetFilesDir);
-                }
-                if (!targetFilesDir.mkdirs()) {
+                // Ensure target directory exists (don't clean it to preserve existing files)
+                if (!targetFilesDir.exists() && !targetFilesDir.mkdirs()) {
                     Log.e(TAG, "Failed to create target files directory: " + targetFilesDir.getAbsolutePath());
                 }
-                // Copy files to the consistent "files" directory
+
+                // Copy files to the consistent "files" directory, preserving existing files
                 if (!backupFilesDir.renameTo(targetFilesDir)) {
-                    // If renameTo doesn't work, try to copy files
+                    // If renameTo doesn't work, try to copy files while preserving existing ones
                     copyDirectory(backupFilesDir, targetFilesDir);
                     deleteDirectory(backupFilesDir);
                 }
@@ -915,6 +914,17 @@ public class AutoBackupManager {
                 copyDirectory(file, targetSubDir);
             } else {
                 File targetFile = new File(targetDir, file.getName());
+
+                // Проверяем, существует ли файл с таким же именем
+                if (targetFile.exists()) {
+                    // Проверяем, совпадает ли содержимое файлов
+                    if (areFilesContentEqual(file, targetFile)) {
+                        // Файл с тем же содержимым уже существует, пропускаем копирование
+                        Log.d(TAG, "File with same content already exists, skipping: " + targetFile.getAbsolutePath());
+                        continue;
+                    }
+                }
+
                 try {
                     java.nio.file.Files.copy(file.toPath(), targetFile.toPath(),
                             java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -934,6 +944,46 @@ public class AutoBackupManager {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Проверяет, совпадает ли содержимое двух файлов
+     */
+    private boolean areFilesContentEqual(File file1, File file2) {
+        try (java.io.FileInputStream stream1 = new java.io.FileInputStream(file1);
+             java.io.FileInputStream stream2 = new java.io.FileInputStream(file2)) {
+
+            // Сравниваем размеры файлов
+            if (file1.length() != file2.length()) {
+                return false;
+            }
+
+            // Сравниваем содержимое побайтово
+            byte[] buffer1 = new byte[4096];
+            byte[] buffer2 = new byte[4096];
+
+            int bytesRead1, bytesRead2;
+            while ((bytesRead1 = stream1.read(buffer1)) != -1) {
+                bytesRead2 = stream2.read(buffer2);
+
+                if (bytesRead1 != bytesRead2) {
+                    return false;
+                }
+
+                // Сравниваем буферы
+                for (int i = 0; i < bytesRead1; i++) {
+                    if (buffer1[i] != buffer2[i]) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "Error comparing file content: " + e.getMessage());
+            // Если не можем сравнить, предполагаем, что файлы разные
+            return false;
         }
     }
 
@@ -1189,6 +1239,276 @@ public class AutoBackupManager {
     }
 
     /**
+     * Восстановление из всех доступных резервных копий
+     */
+    public boolean restoreFromAllBackups() {
+        try {
+            Log.d(TAG, "Starting restore from all available backups");
+
+            File[] backupFiles = getAvailableBackups();
+            if (backupFiles == null || backupFiles.length == 0) {
+                Log.e(TAG, "No backup files found");
+                return false;
+            }
+
+            // Сортируем файлы по времени модификации (от старых к новым)
+            java.util.Arrays.sort(backupFiles, (f1, f2) -> Long.compare(f1.lastModified(), f2.lastModified()));
+
+            // Очищаем текущие данные
+            repository.deleteAllData();
+
+            // Мапы для соответствия старых и новых ID
+            Map<Long, Long> collectionIdMap = new HashMap<>();
+            Map<Long, Long> seriesIdMap = new HashMap<>();
+
+            boolean success = true;
+
+            // Обрабатываем каждую резервную копию
+            for (File backupFile : backupFiles) {
+                Log.d(TAG, "Processing backup file: " + backupFile.getName());
+
+                if (isZipBackupFile(backupFile)) {
+                    // Временно извлекаем ZIP для обработки
+                    String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+                            .format(new Date());
+                    File extractDir = new File(context.getCacheDir(), "temp_extract_" + timeStamp);
+
+                    boolean extracted = BackupFileManager.extractZipBackup(backupFile.getAbsolutePath(), extractDir.getAbsolutePath());
+                    if (!extracted) {
+                        Log.e(TAG, "Failed to extract ZIP backup: " + backupFile.getName());
+                        continue;
+                    }
+
+                    // Находим JSON файл в извлеченной папке
+                    File[] jsonFiles = extractDir.listFiles((dir, name) -> name.endsWith(".json"));
+                    if (jsonFiles != null && jsonFiles.length > 0) {
+                        success &= processBackupFile(jsonFiles[0], collectionIdMap, seriesIdMap);
+                    }
+
+                    // Удаляем временную папку
+                    deleteDirectory(extractDir);
+                } else {
+                    success &= processBackupFile(backupFile, collectionIdMap, seriesIdMap);
+                }
+            }
+
+            Log.i(TAG, "Restore from all backups completed");
+            return success;
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error restoring from all backups", e);
+            return false;
+        }
+    }
+
+    /**
+     * Обработка одного файла резервной копии и объединение с существующими данными
+     */
+    private boolean processBackupFile(File backupFile, Map<Long, Long> collectionIdMap, Map<Long, Long> seriesIdMap) {
+        try {
+            Log.d(TAG, "Processing backup file: " + backupFile.getAbsolutePath());
+
+            // Читаем файл
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.FileReader(backupFile));
+            StringBuilder jsonBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                jsonBuilder.append(line);
+            }
+            reader.close();
+
+            String json = jsonBuilder.toString();
+            Log.d(TAG, "Backup JSON length: " + json.length());
+
+            // Парсим JSON
+            Type type = new TypeToken<BackupData>() {}.getType();
+            BackupData backupData = gson.fromJson(json, type);
+
+            if (backupData == null) {
+                Log.e(TAG, "Failed to parse backup file: " + backupFile.getName());
+                return false;
+            }
+
+            Log.d(TAG, "Parsed backup: " +
+                    (backupData.collections != null ? backupData.collections.size() : 0) + " collections, " +
+                    (backupData.series != null ? backupData.series.size() : 0) + " series, " +
+                    (backupData.mediaFiles != null ? backupData.mediaFiles.size() : 0) + " media files");
+
+            // Восстанавливаем коллекции
+            if (backupData.collections != null) {
+                for (Collection collectionData : backupData.collections) {
+                    // Проверяем, не существует ли коллекция с таким же названием
+                    Collection existingCollection = repository.getCollectionByNameSync(collectionData.getName());
+                    if (existingCollection != null) {
+                        // Коллекция с таким именем уже существует, обновляем мапу
+                        collectionIdMap.put(collectionData.getId(), existingCollection.getId());
+                        Log.d(TAG, "Collection already exists: " + collectionData.getName());
+                    } else {
+                        long oldId = collectionData.getId();
+
+                        // Создаем новый объект Collection с правильными методами
+                        Collection newCollection = new Collection();
+                        newCollection.setName(collectionData.getName());
+                        newCollection.setCreatedAt(collectionData.getCreatedAt());
+                        newCollection.setFavorite(collectionData.isFavorite()); // Используем isFavorite()
+                        newCollection.setColors(collectionData.getColors());
+
+                        // Сбрасываем ID для новой вставки
+                        newCollection.setId(0);
+                        long newId = repository.insertCollectionSync(newCollection);
+                        if (newId > 0) {
+                            collectionIdMap.put(oldId, newId);
+                            Log.d(TAG, "Restored collection: " + newCollection.getName() +
+                                    " (old: " + oldId + ", new: " + newId + ")");
+                        }
+                    }
+                }
+            }
+
+            // Восстанавливаем сериалы
+            if (backupData.series != null) {
+                for (Series series : backupData.series) {
+                    // Проверяем, не существует ли серия с таким же названием
+                    Series existingSeries = repository.getSeriesByTitleSync(series.getTitle());
+                    if (existingSeries != null) {
+                        // Серия с таким названием уже существует, обновляем мапу
+                        seriesIdMap.put(series.getId(), existingSeries.getId());
+                        Log.d(TAG, "Series already exists: " + series.getTitle());
+
+                        // Восстанавливаем файл обложки, если путь является относительным (означает, что это файл из резервной копии)
+                        if (series.getImageUri() != null && series.getImageUri().startsWith("files/")) {
+                            String restoredPath = BackupFileManager.restoreFileFromBackup(
+                                    context,
+                                    series.getImageUri(),
+                                    backupFile.getParent()
+                            );
+                            if (restoredPath != null) {
+                                // Обновляем URI обложки для существующей серии
+                                existingSeries.setImageUri(restoredPath);
+                                repository.updateSeriesSync(existingSeries);
+                            }
+                        }
+                    } else {
+                        Series updatedSeries = new Series();
+                        updatedSeries.setTitle(series.getTitle());
+                        updatedSeries.setIsWatched(series.getIsWatched());
+                        updatedSeries.setNotes(series.getNotes());
+                        updatedSeries.setCreatedAt(series.getCreatedAt());
+                        updatedSeries.setStatus(series.getStatus());
+                        updatedSeries.setIsFavorite(series.getIsFavorite());
+                        updatedSeries.setRating(series.getRating());
+                        updatedSeries.setGenre(series.getGenre());
+                        updatedSeries.setSeasons(series.getSeasons());
+                        updatedSeries.setEpisodes(series.getEpisodes());
+
+                        // Восстанавливаем файл обложки, если путь является относительным (означает, что это файл из резервной копии)
+                        if (series.getImageUri() != null && series.getImageUri().startsWith("files/")) {
+                            String restoredPath = BackupFileManager.restoreFileFromBackup(
+                                    context,
+                                    series.getImageUri(),
+                                    backupFile.getParent()
+                            );
+                            if (restoredPath != null) {
+                                updatedSeries.setImageUri(restoredPath);
+                            } else {
+                                // Если не удалось восстановить файл, оставляем оригинальный путь
+                                updatedSeries.setImageUri(series.getImageUri());
+                            }
+                        } else {
+                            // Это обычный URI, оставляем без изменений
+                            updatedSeries.setImageUri(series.getImageUri());
+                        }
+
+                        long oldId = series.getId();
+                        // Сбрасываем ID для новой вставки
+                        updatedSeries.setId(0);
+                        long newId = repository.insertSeriesSync(updatedSeries);
+                        if (newId > 0) {
+                            seriesIdMap.put(oldId, newId);
+                            Log.d(TAG, "Restored series: " + updatedSeries.getTitle() +
+                                    " (old: " + oldId + ", new: " + newId + ")");
+                        }
+                    }
+                }
+            }
+
+            // Восстанавливаем связи
+            if (backupData.relations != null) {
+                for (SeriesCollectionCrossRef relation : backupData.relations) {
+                    Long newSeriesId = seriesIdMap.get(relation.getSeriesId());
+                    Long newCollectionId = collectionIdMap.get(relation.getCollectionId());
+
+                    if (newSeriesId != null && newCollectionId != null) {
+                        // Проверяем, не существует ли связь
+                        boolean relationExists = repository.checkRelationExistsSync(newSeriesId, newCollectionId);
+                        if (!relationExists) {
+                            SeriesCollectionCrossRef newRelation = new SeriesCollectionCrossRef(
+                                    newSeriesId, newCollectionId);
+                            newRelation.setIsWatched(relation.getIsWatched());
+                            repository.insertCrossRefSync(newRelation);
+                            Log.d(TAG, "Restored relation: series " + newSeriesId +
+                                    " -> collection " + newCollectionId);
+                        } else {
+                            Log.d(TAG, "Relation already exists: series " + newSeriesId +
+                                    " -> collection " + newCollectionId);
+                        }
+                    }
+                }
+            }
+
+            // Восстанавливаем медиафайлы
+            if (backupData.mediaFiles != null) {
+                for (MediaFile mediaFile : backupData.mediaFiles) {
+                    Long oldSeriesId = mediaFile.getSeriesId();
+                    Long newSeriesId = seriesIdMap.get(oldSeriesId);
+
+                    if (newSeriesId != null) {
+                        // Проверяем, не существует ли медиафайл с таким же URI
+                        MediaFile existingMediaFile = repository.getMediaFileByUriAndSeriesSync(mediaFile.getFileUri(), newSeriesId);
+                        if (existingMediaFile != null) {
+                            Log.d(TAG, "Media file already exists: " + mediaFile.getFileName() +
+                                    " for series ID: " + newSeriesId);
+                        } else {
+                            // Если путь к файлу является относительным (означает, что это файл из резервной копии)
+                            if (mediaFile.getFileUri() != null && mediaFile.getFileUri().startsWith("files/")) {
+                                String restoredPath = BackupFileManager.restoreFileFromBackup(
+                                        context,
+                                        mediaFile.getFileUri(),
+                                        backupFile.getParent()
+                                );
+                                if (restoredPath != null) {
+                                    mediaFile.setFileUri(restoredPath);
+                                    mediaFile.setFilePath(restoredPath);
+                                } else {
+                                    // Если не удалось восстановить файл, оставляем оригинальный путь
+                                    mediaFile.setFileUri(mediaFile.getFileUri());
+                                }
+                            }
+                            // Обновляем ID сериала для нового файла
+                            mediaFile.setSeriesId(newSeriesId);
+                            // Сбрасываем ID для новой вставки
+                            mediaFile.setId(0);
+
+                            long newMediaId = repository.insertMediaFileSync(mediaFile);
+                            if (newMediaId > 0) {
+                                Log.d(TAG, "Restored media file: " + mediaFile.getFileName() +
+                                        " for series ID: " + newSeriesId);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return true;
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing backup file: " + backupFile.getName(), e);
+            return false;
+        }
+    }
+
+    /**
      * Получает имя файла из URI
      */
     private String getFileNameFromUri(Context context, Uri uri) {
@@ -1228,5 +1548,409 @@ public class AutoBackupManager {
         }
 
         return fileName;
+    }
+
+    /**
+     * Создает объединенную резервную копию из всех доступных резервных копий
+     */
+    public File createConsolidatedBackup() {
+        try {
+            Log.d(TAG, "Starting creation of consolidated backup");
+
+            File[] backupFiles = getAvailableBackups();
+            if (backupFiles == null || backupFiles.length == 0) {
+                Log.e(TAG, "No backup files found to consolidate");
+                return null;
+            }
+
+            // Сортируем файлы по времени модификации (от старых к новым)
+            java.util.Arrays.sort(backupFiles, (f1, f2) -> Long.compare(f1.lastModified(), f2.lastModified()));
+
+            // Создаем объект объединенных данных
+            BackupData consolidatedData = new BackupData();
+            consolidatedData.collections = new ArrayList<>();
+            consolidatedData.series = new ArrayList<>();
+            consolidatedData.relations = new ArrayList<>();
+            consolidatedData.mediaFiles = new ArrayList<>();
+            consolidatedData.timestamp = System.currentTimeMillis();
+            consolidatedData.version = 1;
+
+            // Мапы для соответствия старых и новых ID
+            Map<Long, Long> collectionIdMap = new HashMap<>();
+            Map<Long, Long> seriesIdMap = new HashMap<>();
+
+            // Временная директория для объединенных файлов
+            String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+                    .format(new Date());
+            File tempBackupDir = new File(context.getCacheDir(), "consolidated_backup_" + timeStamp);
+            if (!tempBackupDir.exists() && !tempBackupDir.mkdirs()) {
+                Log.e(TAG, "Failed to create temporary consolidated backup directory");
+                return null;
+            }
+
+            File tempFilesDir = new File(tempBackupDir, "files");
+            if (!tempFilesDir.exists() && !tempFilesDir.mkdirs()) {
+                Log.e(TAG, "Failed to create temporary files directory");
+                return null;
+            }
+
+            // Обрабатываем каждую резервную копию
+            for (File backupFile : backupFiles) {
+                Log.d(TAG, "Processing backup file for consolidation: " + backupFile.getName());
+
+                if (isZipBackupFile(backupFile)) {
+                    // Временно извлекаем ZIP для обработки
+                    File extractDir = new File(context.getCacheDir(), "temp_extract_" + System.currentTimeMillis());
+
+                    boolean extracted = BackupFileManager.extractZipBackup(backupFile.getAbsolutePath(), extractDir.getAbsolutePath());
+                    if (!extracted) {
+                        Log.e(TAG, "Failed to extract ZIP backup: " + backupFile.getName());
+                        continue;
+                    }
+
+                    // Находим JSON файл в извлеченной папке
+                    File[] jsonFiles = extractDir.listFiles((dir, name) -> name.endsWith(".json"));
+                    if (jsonFiles != null && jsonFiles.length > 0) {
+                        processBackupFileForConsolidation(jsonFiles[0], consolidatedData, collectionIdMap, seriesIdMap, tempFilesDir);
+                    }
+
+                    // Удаляем временную папку
+                    deleteDirectory(extractDir);
+                } else {
+                    processBackupFileForConsolidation(backupFile, consolidatedData, collectionIdMap, seriesIdMap, tempFilesDir);
+                }
+            }
+
+            // Создаем директорию для сохранения объединенной резервной копии
+            File backupDir = getBackupDirectory();
+            if (!backupDir.exists() && !backupDir.mkdirs()) {
+                Log.e(TAG, "Failed to create backup directory");
+                return null;
+            }
+
+            // Сохраняем объединенные данные в JSON
+            String fileName = "consolidated_backup_" + timeStamp + ".json";
+            File consolidatedJsonFile = new File(backupDir, fileName);
+
+            try (FileOutputStream fos = new FileOutputStream(consolidatedJsonFile);
+                 OutputStreamWriter writer = new OutputStreamWriter(fos)) {
+                writer.write(gson.toJson(consolidatedData));
+                writer.flush();
+            }
+
+            // Создаем ZIP архив, содержащий JSON и файлы
+            String zipFileName = "consolidated_backup_" + timeStamp + ".zip";
+            File zipFile = new File(backupDir, zipFileName);
+
+            // Создаем временную директорию для архивации
+            File combinedBackupDir = new File(context.getCacheDir(), "combined_consolidated_" + timeStamp);
+            if (combinedBackupDir.exists()) {
+                deleteDirectory(combinedBackupDir);
+            }
+            if (combinedBackupDir.mkdirs()) {
+                // Копируем JSON файл в комбинированную директорию
+                File jsonInCombined = new File(combinedBackupDir, consolidatedJsonFile.getName());
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(consolidatedJsonFile);
+                     java.io.FileOutputStream fos = new java.io.FileOutputStream(jsonInCombined)) {
+                    byte[] buffer = new byte[4096];
+                    int length;
+                    while ((length = fis.read(buffer)) > 0) {
+                        fos.write(buffer, 0, length);
+                    }
+                }
+
+                // Копируем директорию файлов, если она существует
+                if (tempFilesDir.exists()) {
+                    copyDirectory(tempFilesDir, new File(combinedBackupDir, "files"));
+                }
+
+                // Создаем ZIP архив
+                File createdZip = BackupFileManager.createZipBackup(combinedBackupDir.getAbsolutePath(), zipFile.getAbsolutePath());
+                if (createdZip != null) {
+                    Log.d(TAG, "Consolidated ZIP backup created successfully: " + zipFile.getAbsolutePath());
+                } else {
+                    Log.w(TAG, "Failed to create consolidated ZIP backup");
+                    return null;
+                }
+
+                // Очищаем временную директорию
+                deleteDirectory(combinedBackupDir);
+            }
+
+            // Удаляем временные файлы
+            deleteDirectory(tempBackupDir);
+
+            Log.i(TAG, "Consolidated backup created successfully: " + zipFile.getAbsolutePath());
+            return zipFile;
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating consolidated backup", e);
+            return null;
+        }
+    }
+
+    /**
+     * Обработка одного файла резервной копии для объединения
+     */
+    private void processBackupFileForConsolidation(File backupFile, BackupData consolidatedData,
+                                                   Map<Long, Long> collectionIdMap, Map<Long, Long> seriesIdMap,
+                                                   File targetFilesDir) {
+        try {
+            Log.d(TAG, "Processing backup file for consolidation: " + backupFile.getAbsolutePath());
+
+            // Читаем файл
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.FileReader(backupFile));
+            StringBuilder jsonBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                jsonBuilder.append(line);
+            }
+            reader.close();
+
+            String json = jsonBuilder.toString();
+            Log.d(TAG, "Backup JSON length: " + json.length());
+
+            // Парсим JSON
+            Type type = new TypeToken<BackupData>() {}.getType();
+            BackupData backupData = gson.fromJson(json, type);
+
+            if (backupData == null) {
+                Log.e(TAG, "Failed to parse backup file: " + backupFile.getName());
+                return;
+            }
+
+            Log.d(TAG, "Parsed backup: " +
+                    (backupData.collections != null ? backupData.collections.size() : 0) + " collections, " +
+                    (backupData.series != null ? backupData.series.size() : 0) + " series, " +
+                    (backupData.mediaFiles != null ? backupData.mediaFiles.size() : 0) + " media files");
+
+            // Обрабатываем коллекции
+            if (backupData.collections != null) {
+                for (Collection collection : backupData.collections) {
+                    // Проверяем, не существует ли коллекция с таким же названием
+                    boolean exists = false;
+                    for (Collection existingCollection : consolidatedData.collections) {
+                        if (existingCollection.getName().equals(collection.getName())) {
+                            exists = true;
+                            break;
+                        }
+                    }
+
+                    if (!exists) {
+                        // Добавляем коллекцию и обновляем мапу ID
+                        Collection newCollection = new Collection();
+                        newCollection.setName(collection.getName());
+                        newCollection.setCreatedAt(collection.getCreatedAt());
+                        newCollection.setFavorite(collection.isFavorite());
+                        newCollection.setId(0); // Сбрасываем ID
+
+                        long oldId = collection.getId();
+                        consolidatedData.collections.add(newCollection);
+                        collectionIdMap.put(oldId, (long) consolidatedData.collections.size()); // Используем индекс как временный ID
+                    }
+                }
+            }
+
+            // Обрабатываем сериалы
+            if (backupData.series != null) {
+                for (Series series : backupData.series) {
+                    // Проверяем, не существует ли серия с таким же названием
+                    boolean exists = false;
+                    for (Series existingSeries : consolidatedData.series) {
+                        if (existingSeries.getTitle().equals(series.getTitle())) {
+                            exists = true;
+                            // Обновляем обложку, если она отличается и новая не пустая
+                            if (series.getImageUri() != null && !series.getImageUri().isEmpty()
+                                    && (existingSeries.getImageUri() == null || existingSeries.getImageUri().isEmpty())) {
+                                existingSeries.setImageUri(series.getImageUri());
+                            }
+                            break;
+                        }
+                    }
+
+                    if (!exists) {
+                        Series newSeries = new Series();
+                        newSeries.setTitle(series.getTitle());
+                        newSeries.setIsWatched(series.getIsWatched());
+                        newSeries.setNotes(series.getNotes());
+                        newSeries.setCreatedAt(series.getCreatedAt());
+                        newSeries.setStatus(series.getStatus());
+                        newSeries.setIsFavorite(series.getIsFavorite());
+                        newSeries.setRating(series.getRating());
+                        newSeries.setGenre(series.getGenre());
+                        newSeries.setSeasons(series.getSeasons());
+                        newSeries.setEpisodes(series.getEpisodes());
+
+                        // Обрабатываем файл обложки, если путь является относительным
+                        if (series.getImageUri() != null && series.getImageUri().startsWith("files/")) {
+                            // Копируем файл в целевую директорию
+                            File sourceFile = new File(backupFile.getParent(), series.getImageUri());
+                            if (sourceFile.exists()) {
+                                // Копируем файл в целевую директорию
+                                File destFile = new File(targetFilesDir, sourceFile.getName());
+
+                                // Проверяем, существует ли файл с таким же именем
+                                if (destFile.exists()) {
+                                    // Проверяем, совпадает ли содержимое файлов
+                                    if (areFilesContentEqual(sourceFile, destFile)) {
+                                        // Файл с тем же содержимым уже существует, используем существующий путь
+                                        newSeries.setImageUri("files/" + destFile.getName());
+                                    } else {
+                                        // Создаем уникальное имя
+                                        String nameWithoutExtension = "";
+                                        String extension = "";
+                                        int dotIndex = destFile.getName().lastIndexOf('.');
+                                        if (dotIndex > 0) {
+                                            nameWithoutExtension = destFile.getName().substring(0, dotIndex);
+                                            extension = destFile.getName().substring(dotIndex);
+                                        } else {
+                                            nameWithoutExtension = destFile.getName();
+                                            extension = "";
+                                        }
+
+                                        String uniqueFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
+                                        File uniqueDestFile = new File(targetFilesDir, uniqueFileName);
+
+                                        java.nio.file.Files.copy(sourceFile.toPath(), uniqueDestFile.toPath(),
+                                                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                        newSeries.setImageUri("files/" + uniqueDestFile.getName());
+                                    }
+                                } else {
+                                    // Копируем файл
+                                    java.nio.file.Files.copy(sourceFile.toPath(), destFile.toPath(),
+                                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                    newSeries.setImageUri("files/" + destFile.getName());
+                                }
+                            } else {
+                                // Если файл не существует, оставляем оригинальный путь
+                                newSeries.setImageUri(series.getImageUri());
+                            }
+                        } else {
+                            // Это обычный URI, оставляем без изменений
+                            newSeries.setImageUri(series.getImageUri());
+                        }
+
+                        newSeries.setId(0); // Сбрасываем ID
+
+                        long oldId = series.getId();
+                        consolidatedData.series.add(newSeries);
+                        seriesIdMap.put(oldId, (long) consolidatedData.series.size()); // Используем индекс как временный ID
+                    }
+                }
+            }
+
+            // Обрабатываем связи
+            if (backupData.relations != null) {
+                for (SeriesCollectionCrossRef relation : backupData.relations) {
+                    Long mappedSeriesId = seriesIdMap.get(relation.getSeriesId());
+                    Long mappedCollectionId = collectionIdMap.get(relation.getCollectionId());
+
+                    if (mappedSeriesId != null && mappedCollectionId != null) {
+                        // Проверяем, не существует ли связь
+                        boolean relationExists = false;
+                        for (SeriesCollectionCrossRef existingRelation : consolidatedData.relations) {
+                            if (existingRelation.getSeriesId() == mappedSeriesId &&
+                                    existingRelation.getCollectionId() == mappedCollectionId) {
+                                relationExists = true;
+                                break;
+                            }
+                        }
+
+                        if (!relationExists) {
+                            SeriesCollectionCrossRef newRelation = new SeriesCollectionCrossRef(
+                                    mappedSeriesId, mappedCollectionId);
+                            newRelation.setIsWatched(relation.getIsWatched());
+                            consolidatedData.relations.add(newRelation);
+                        }
+                    }
+                }
+            }
+
+            // Обрабатываем медиафайлы
+            if (backupData.mediaFiles != null) {
+                for (MediaFile mediaFile : backupData.mediaFiles) {
+                    Long oldSeriesId = mediaFile.getSeriesId();
+                    Long mappedSeriesId = seriesIdMap.get(oldSeriesId);
+
+                    if (mappedSeriesId != null) {
+                        // Проверяем, не существует ли медиафайл с таким же URI и серией
+                        boolean exists = false;
+                        for (MediaFile existingMediaFile : consolidatedData.mediaFiles) {
+                            if (existingMediaFile.getFileUri() != null && mediaFile.getFileUri() != null &&
+                                    existingMediaFile.getFileUri().equals(mediaFile.getFileUri()) &&
+                                    existingMediaFile.getSeriesId() == mappedSeriesId) {
+                                exists = true;
+                                break;
+                            }
+                        }
+
+                        if (!exists) {
+                            MediaFile newMediaFile = new MediaFile(
+                                    mappedSeriesId,
+                                    mediaFile.getFileUri(),
+                                    mediaFile.getFileType(),
+                                    mediaFile.getFileName()
+                            );
+                            newMediaFile.setFilePath(mediaFile.getFilePath());
+                            newMediaFile.setFileSize(mediaFile.getFileSize());
+                            newMediaFile.setCreatedAt(mediaFile.getCreatedAt());
+                            newMediaFile.setDescription(mediaFile.getDescription());
+                            newMediaFile.setId(0); // Сбрасываем ID
+
+                            // Обрабатываем файл, если путь является относительным
+                            if (mediaFile.getFileUri() != null && mediaFile.getFileUri().startsWith("files/")) {
+                                File sourceFile = new File(backupFile.getParent(), mediaFile.getFileUri());
+                                if (sourceFile.exists()) {
+                                    // Копируем файл в целевую директорию
+                                    File destFile = new File(targetFilesDir, sourceFile.getName());
+
+                                    // Проверяем, существует ли файл с таким же именем
+                                    if (destFile.exists()) {
+                                        // Проверяем, совпадает ли содержимое файлов
+                                        if (areFilesContentEqual(sourceFile, destFile)) {
+                                            // Файл с тем же содержимым уже существует, используем существующий путь
+                                            newMediaFile.setFileUri("files/" + destFile.getName());
+                                        } else {
+                                            // Создаем уникальное имя
+                                            String nameWithoutExtension = "";
+                                            String extension = "";
+                                            int dotIndex = destFile.getName().lastIndexOf('.');
+                                            if (dotIndex > 0) {
+                                                nameWithoutExtension = destFile.getName().substring(0, dotIndex);
+                                                extension = destFile.getName().substring(dotIndex);
+                                            } else {
+                                                nameWithoutExtension = destFile.getName();
+                                                extension = "";
+                                            }
+
+                                            String uniqueFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
+                                            File uniqueDestFile = new File(targetFilesDir, uniqueFileName);
+
+                                            java.nio.file.Files.copy(sourceFile.toPath(), uniqueDestFile.toPath(),
+                                                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                            newMediaFile.setFileUri("files/" + uniqueDestFile.getName());
+                                        }
+                                    } else {
+                                        // Копируем файл
+                                        java.nio.file.Files.copy(sourceFile.toPath(), destFile.toPath(),
+                                                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                        newMediaFile.setFileUri("files/" + destFile.getName());
+                                    }
+                                } else {
+                                    // Если файл не существует, оставляем оригинальный путь
+                                    newMediaFile.setFileUri(mediaFile.getFileUri());
+                                }
+                            }
+
+                            consolidatedData.mediaFiles.add(newMediaFile);
+                        }
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error processing backup file for consolidation: " + backupFile.getName(), e);
+        }
     }
 }

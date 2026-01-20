@@ -29,7 +29,7 @@ public class BackupFileManager {
                 }
             }
 
-            // Всегда создаем новый файл с оригинальным именем (или добавляем счетчик если уже существует)
+            // Используем оригинальное имя файла без добавления счетчика
             String finalFileName = fileName;
             File destinationFile = new File(backupFilesDir, finalFileName);
 
@@ -103,7 +103,7 @@ public class BackupFileManager {
                 }
             }
 
-            // Всегда создаем новый файл с оригинальным именем (или добавляем счетчик если уже существует)
+            // Используем оригинальное имя файла без добавления счетчика
             String finalFileName = fileName;
             File destinationFile = new File(backupFilesDir, finalFileName);
 
