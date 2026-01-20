@@ -33,23 +33,29 @@ public class BackupFileManager {
             String finalFileName = fileName;
             File destinationFile = new File(backupFilesDir, finalFileName);
 
-            // Если файл с таким именем уже существует, добавляем счетчик
-            int counter = 1;
-            String nameWithoutExtension = "";
-            String extension = "";
-            int dotIndex = fileName.lastIndexOf('.');
-            if (dotIndex > 0) {
-                nameWithoutExtension = fileName.substring(0, dotIndex);
-                extension = fileName.substring(dotIndex);
-            } else {
-                nameWithoutExtension = fileName;
-                extension = "";
-            }
+            // Проверяем, существует ли файл с таким же именем
+            if (destinationFile.exists()) {
+                // Проверяем, совпадает ли содержимое файлов
+                if (isSameFileContent(context, sourceUri, destinationFile)) {
+                    // Файл с тем же содержимым уже существует, используем существующий
+                    Log.d(TAG, "File with same content already exists, reusing: " + destinationFile.getAbsolutePath());
+                    return "files/" + finalFileName; // Возвращаем путь к существующему файлу
+                } else {
+                    // Создаем уникальное имя с UUID, чтобы избежать конфликта
+                    String nameWithoutExtension = "";
+                    String extension = "";
+                    int dotIndex = fileName.lastIndexOf('.');
+                    if (dotIndex > 0) {
+                        nameWithoutExtension = fileName.substring(0, dotIndex);
+                        extension = fileName.substring(dotIndex);
+                    } else {
+                        nameWithoutExtension = fileName;
+                        extension = "";
+                    }
 
-            while (destinationFile.exists()) {
-                finalFileName = nameWithoutExtension + "_" + counter + extension;
-                destinationFile = new File(backupFilesDir, finalFileName);
-                counter++;
+                    finalFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
+                    destinationFile = new File(backupFilesDir, finalFileName);
+                }
             }
 
             // Копируем файл
@@ -101,23 +107,29 @@ public class BackupFileManager {
             String finalFileName = fileName;
             File destinationFile = new File(backupFilesDir, finalFileName);
 
-            // Если файл с таким именем уже существует, добавляем счетчик
-            int counter = 1;
-            String nameWithoutExtension = "";
-            String extension = "";
-            int dotIndex = fileName.lastIndexOf('.');
-            if (dotIndex > 0) {
-                nameWithoutExtension = fileName.substring(0, dotIndex);
-                extension = fileName.substring(dotIndex);
-            } else {
-                nameWithoutExtension = fileName;
-                extension = "";
-            }
+            // Проверяем, существует ли файл с таким же именем
+            if (destinationFile.exists()) {
+                // Проверяем, совпадает ли содержимое файлов
+                if (areFilesContentEqual(context, sourceFile, destinationFile)) {
+                    // Файл с тем же содержимым уже существует, используем существующий
+                    Log.d(TAG, "File with same content already exists, reusing: " + destinationFile.getAbsolutePath());
+                    return "files/" + finalFileName; // Возвращаем путь к существующему файлу
+                } else {
+                    // Создаем уникальное имя с UUID, чтобы избежать конфликта
+                    String nameWithoutExtension = "";
+                    String extension = "";
+                    int dotIndex = fileName.lastIndexOf('.');
+                    if (dotIndex > 0) {
+                        nameWithoutExtension = fileName.substring(0, dotIndex);
+                        extension = fileName.substring(dotIndex);
+                    } else {
+                        nameWithoutExtension = fileName;
+                        extension = "";
+                    }
 
-            while (destinationFile.exists()) {
-                finalFileName = nameWithoutExtension + "_" + counter + extension;
-                destinationFile = new File(backupFilesDir, finalFileName);
-                counter++;
+                    finalFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
+                    destinationFile = new File(backupFilesDir, finalFileName);
+                }
             }
 
             // Копируем файл
@@ -310,5 +322,103 @@ public class BackupFileManager {
             Log.e("BackupFileManager", "Error extracting ZIP backup: " + e.getMessage(), e);
             return false;
         }
+    }
+
+    /**
+     * Проверяет, совпадает ли содержимое файла по URI с содержимым указанного файла
+     */
+    private static boolean isSameFileContent(Context context, Uri uri, File file) {
+        try (InputStream uriStream = context.getContentResolver().openInputStream(uri);
+             java.io.FileInputStream fileStream = new java.io.FileInputStream(file)) {
+
+            if (uriStream == null) {
+                return false;
+            }
+
+            // Сравниваем размеры файлов
+            if (getFileSize(context, uri) != file.length()) {
+                return false;
+            }
+
+            // Сравниваем содержимое побайтово
+            byte[] uriBuffer = new byte[4096];
+            byte[] fileBuffer = new byte[4096];
+
+            int uriBytesRead, fileBytesRead;
+            while ((uriBytesRead = uriStream.read(uriBuffer)) != -1) {
+                fileBytesRead = fileStream.read(fileBuffer);
+
+                if (uriBytesRead != fileBytesRead) {
+                    return false;
+                }
+
+                // Сравниваем буферы
+                for (int i = 0; i < uriBytesRead; i++) {
+                    if (uriBuffer[i] != fileBuffer[i]) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        } catch (IOException e) {
+            Log.w(TAG, "Error comparing file content: " + e.getMessage());
+            // Если не можем сравнить, предполагаем, что файлы разные
+            return false;
+        }
+    }
+
+    /**
+     * Проверяет, совпадает ли содержимое двух файлов
+     */
+    private static boolean areFilesContentEqual(Context context, File file1, File file2) {
+        try (java.io.FileInputStream stream1 = new java.io.FileInputStream(file1);
+             java.io.FileInputStream stream2 = new java.io.FileInputStream(file2)) {
+
+            // Сравниваем размеры файлов
+            if (file1.length() != file2.length()) {
+                return false;
+            }
+
+            // Сравниваем содержимое побайтово
+            byte[] buffer1 = new byte[4096];
+            byte[] buffer2 = new byte[4096];
+
+            int bytesRead1, bytesRead2;
+            while ((bytesRead1 = stream1.read(buffer1)) != -1) {
+                bytesRead2 = stream2.read(buffer2);
+
+                if (bytesRead1 != bytesRead2) {
+                    return false;
+                }
+
+                // Сравниваем буферы
+                for (int i = 0; i < bytesRead1; i++) {
+                    if (buffer1[i] != buffer2[i]) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        } catch (IOException e) {
+            Log.w(TAG, "Error comparing file content: " + e.getMessage());
+            // Если не можем сравнить, предполагаем, что файлы разные
+            return false;
+        }
+    }
+
+    /**
+     * Получает размер файла по URI
+     */
+    private static long getFileSize(Context context, Uri uri) {
+        try (InputStream inputStream = context.getContentResolver().openInputStream(uri)) {
+            if (inputStream != null) {
+                return inputStream.available();
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "Error getting file size: " + e.getMessage());
+        }
+        return -1;
     }
 }

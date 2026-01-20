@@ -4,8 +4,10 @@ import android.Manifest;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.os.Build;
 import android.os.Environment;
+import android.provider.OpenableColumns;
 import android.util.Log;
 
 import androidx.core.content.ContextCompat;
@@ -194,10 +196,17 @@ public class AutoBackupManager {
                 if (seriesItem.getImageUri() != null) {
                     try {
                         Uri imageUri = Uri.parse(seriesItem.getImageUri());
+                        // Получаем оригинальное имя файла из URI
+                        String originalFileName = getFileNameFromUri(context, imageUri);
+                        if (originalFileName == null || originalFileName.isEmpty()) {
+                            // Если не удалось получить оригинальное имя, используем имя по умолчанию
+                            originalFileName = "series_cover_" + seriesItem.getId() + ".jpg";
+                        }
+
                         String newRelativePath = BackupFileManager.copyFileToBackupDir(
                                 context,
                                 imageUri,
-                                "series_cover_" + seriesItem.getId() + ".jpg",
+                                originalFileName,
                                 tempBackupDir.getAbsolutePath()
                         );
                         if (newRelativePath != null) {
@@ -1177,5 +1186,47 @@ public class AutoBackupManager {
     public boolean isZipBackupUri(Uri backupUri) {
         String uriString = backupUri.toString().toLowerCase();
         return uriString.endsWith(".zip") || uriString.contains(".zip");
+    }
+
+    /**
+     * Получает имя файла из URI
+     */
+    private String getFileNameFromUri(Context context, Uri uri) {
+        if (uri == null) {
+            return null;
+        }
+
+        String fileName = null;
+
+        // Для файлов из внешнего хранилища может быть специальный столбец
+        if ("content".equalsIgnoreCase(uri.getScheme())) {
+            try {
+                java.util.List<String> pathSegments = uri.getPathSegments();
+                if (pathSegments != null && !pathSegments.isEmpty()) {
+                    fileName = pathSegments.get(pathSegments.size() - 1);
+                }
+
+                // Попробуем получить имя файла через ContentResolver
+                try (android.database.Cursor cursor = context.getContentResolver().query(
+                        uri,
+                        new String[]{android.provider.OpenableColumns.DISPLAY_NAME},
+                        null,
+                        null,
+                        null)) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int columnIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                        if (columnIndex >= 0) {
+                            fileName = cursor.getString(columnIndex);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Could not get file name from URI via cursor: " + e.getMessage());
+            }
+        } else if ("file".equalsIgnoreCase(uri.getScheme())) {
+            fileName = new File(uri.getPath()).getName();
+        }
+
+        return fileName;
     }
 }
