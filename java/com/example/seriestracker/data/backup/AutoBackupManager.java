@@ -1,3 +1,4 @@
+
 package com.example.seriestracker.data.backup;
 
 import android.Manifest;
@@ -254,20 +255,15 @@ public class AutoBackupManager {
                 writer.flush();
             }
 
-            // Move the files directory to permanent location
+            // Move the files directory to permanent location with unique name for this backup
             File backupFilesDir = new File(tempBackupDir, "files");
-            File targetFilesDir = new File(backupDir, "files"); // Use consistent folder name instead of timestamped
+            File targetFilesDir = new File(backupDir, "files_" + timeStamp); // Unique folder name for each backup
 
             if (backupFilesDir.exists()) {
 
-                // Ensure target directory exists (don't clean it to preserve existing files)
-                if (!targetFilesDir.exists() && !targetFilesDir.mkdirs()) {
-                    Log.e(TAG, "Failed to create target files directory: " + targetFilesDir.getAbsolutePath());
-                }
-
-                // Copy files to the consistent "files" directory, preserving existing files
+                // Move files to the unique directory for this backup
                 if (!backupFilesDir.renameTo(targetFilesDir)) {
-                    // If renameTo doesn't work, try to copy files while preserving existing ones
+                    // If renameTo doesn't work, try to copy files
                     copyDirectory(backupFilesDir, targetFilesDir);
                     deleteDirectory(backupFilesDir);
                 }
@@ -297,8 +293,6 @@ public class AutoBackupManager {
                 // Copy the files directory if it exists
                 if (backupFilesDir.exists()) {
                     copyDirectory(backupFilesDir, new File(combinedBackupDir, "files"));
-                } else if (targetFilesDir != null && targetFilesDir.exists()) { // Проверяем на null
-                    copyDirectory(targetFilesDir, new File(combinedBackupDir, "files"));
                 }
                 // ... остальной код
 
@@ -915,25 +909,34 @@ public class AutoBackupManager {
             } else {
                 File targetFile = new File(targetDir, file.getName());
 
-                // Проверяем, существует ли файл с таким же именем
+                // Для избежания конфликта имен генерируем уникальное имя при необходимости
+                File finalTargetFile = targetFile;
                 if (targetFile.exists()) {
-                    // Проверяем, совпадает ли содержимое файлов
-                    if (areFilesContentEqual(file, targetFile)) {
-                        // Файл с тем же содержимым уже существует, пропускаем копирование
-                        Log.d(TAG, "File with same content already exists, skipping: " + targetFile.getAbsolutePath());
-                        continue;
+                    String nameWithoutExtension = "";
+                    String extension = "";
+                    String fileName = file.getName();
+                    int dotIndex = fileName.lastIndexOf('.');
+                    if (dotIndex > 0) {
+                        nameWithoutExtension = fileName.substring(0, dotIndex);
+                        extension = fileName.substring(dotIndex);
+                    } else {
+                        nameWithoutExtension = fileName;
+                        extension = "";
                     }
+
+                    String uniqueFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
+                    finalTargetFile = new File(targetDir, uniqueFileName);
                 }
 
                 try {
-                    java.nio.file.Files.copy(file.toPath(), targetFile.toPath(),
+                    java.nio.file.Files.copy(file.toPath(), finalTargetFile.toPath(),
                             java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 } catch (Exception e) {
-                    Log.e(TAG, "Error copying file: " + file.getAbsolutePath() + " to " + targetFile.getAbsolutePath(), e);
+                    Log.e(TAG, "Error copying file: " + file.getAbsolutePath() + " to " + finalTargetFile.getAbsolutePath(), e);
 
                     // Резервный способ копирования
                     try (java.io.FileInputStream fis = new java.io.FileInputStream(file);
-                         java.io.FileOutputStream fos = new java.io.FileOutputStream(targetFile)) {
+                         java.io.FileOutputStream fos = new java.io.FileOutputStream(finalTargetFile)) {
                         byte[] buffer = new byte[4096];
                         int length;
                         while ((length = fis.read(buffer)) > 0) {

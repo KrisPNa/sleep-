@@ -1,3 +1,4 @@
+
 package com.example.seriestracker.data.backup;
 
 import android.content.Context;
@@ -33,29 +34,22 @@ public class BackupFileManager {
             String finalFileName = fileName;
             File destinationFile = new File(backupFilesDir, finalFileName);
 
-            // Проверяем, существует ли файл с таким же именем
+            // При создании новой резервной копии просто копируем файл с оригинальным именем, не проверяя дубликаты
+            // Если файл с таким именем уже существует, генерируем уникальное имя с UUID
             if (destinationFile.exists()) {
-                // Проверяем, совпадает ли содержимое файлов
-                if (isSameFileContent(context, sourceUri, destinationFile)) {
-                    // Файл с тем же содержимым уже существует, используем существующий
-                    Log.d(TAG, "File with same content already exists, reusing: " + destinationFile.getAbsolutePath());
-                    return "files/" + finalFileName; // Возвращаем путь к существующему файлу
+                String nameWithoutExtension = "";
+                String extension = "";
+                int dotIndex = fileName.lastIndexOf('.');
+                if (dotIndex > 0) {
+                    nameWithoutExtension = fileName.substring(0, dotIndex);
+                    extension = fileName.substring(dotIndex);
                 } else {
-                    // Создаем уникальное имя с UUID, чтобы избежать конфликта
-                    String nameWithoutExtension = "";
-                    String extension = "";
-                    int dotIndex = fileName.lastIndexOf('.');
-                    if (dotIndex > 0) {
-                        nameWithoutExtension = fileName.substring(0, dotIndex);
-                        extension = fileName.substring(dotIndex);
-                    } else {
-                        nameWithoutExtension = fileName;
-                        extension = "";
-                    }
-
-                    finalFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
-                    destinationFile = new File(backupFilesDir, finalFileName);
+                    nameWithoutExtension = fileName;
+                    extension = "";
                 }
+
+                finalFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
+                destinationFile = new File(backupFilesDir, finalFileName);
             }
 
             // Копируем файл
@@ -107,29 +101,22 @@ public class BackupFileManager {
             String finalFileName = fileName;
             File destinationFile = new File(backupFilesDir, finalFileName);
 
-            // Проверяем, существует ли файл с таким же именем
+            // При создании новой резервной копии просто копируем файл с оригинальным именем, не проверяя дубликаты
+            // Если файл с таким именем уже существует, генерируем уникальное имя с UUID
             if (destinationFile.exists()) {
-                // Проверяем, совпадает ли содержимое файлов
-                if (areFilesContentEqual(context, sourceFile, destinationFile)) {
-                    // Файл с тем же содержимым уже существует, используем существующий
-                    Log.d(TAG, "File with same content already exists, reusing: " + destinationFile.getAbsolutePath());
-                    return "files/" + finalFileName; // Возвращаем путь к существующему файлу
+                String nameWithoutExtension = "";
+                String extension = "";
+                int dotIndex = fileName.lastIndexOf('.');
+                if (dotIndex > 0) {
+                    nameWithoutExtension = fileName.substring(0, dotIndex);
+                    extension = fileName.substring(dotIndex);
                 } else {
-                    // Создаем уникальное имя с UUID, чтобы избежать конфликта
-                    String nameWithoutExtension = "";
-                    String extension = "";
-                    int dotIndex = fileName.lastIndexOf('.');
-                    if (dotIndex > 0) {
-                        nameWithoutExtension = fileName.substring(0, dotIndex);
-                        extension = fileName.substring(dotIndex);
-                    } else {
-                        nameWithoutExtension = fileName;
-                        extension = "";
-                    }
-
-                    finalFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
-                    destinationFile = new File(backupFilesDir, finalFileName);
+                    nameWithoutExtension = fileName;
+                    extension = "";
                 }
+
+                finalFileName = nameWithoutExtension + "_" + java.util.UUID.randomUUID().toString() + extension;
+                destinationFile = new File(backupFilesDir, finalFileName);
             }
 
             // Копируем файл
