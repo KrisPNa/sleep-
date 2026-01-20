@@ -249,13 +249,14 @@ public class AutoBackupManager {
             File targetFilesDir = new File(backupDir, "files"); // Use consistent folder name instead of timestamped
 
             if (backupFilesDir.exists()) {
-                // Ensure target directory exists
-                if (!targetFilesDir.exists()) {
-                    if (!targetFilesDir.mkdirs()) {
-                        Log.e(TAG, "Failed to create target files directory: " + targetFilesDir.getAbsolutePath());
-                    }
-                }
 
+                // Ensure target directory exists and clean it for fresh backup
+                if (targetFilesDir.exists()) {
+                    deleteDirectory(targetFilesDir);
+                }
+                if (!targetFilesDir.mkdirs()) {
+                    Log.e(TAG, "Failed to create target files directory: " + targetFilesDir.getAbsolutePath());
+                }
                 // Copy files to the consistent "files" directory
                 if (!backupFilesDir.renameTo(targetFilesDir)) {
                     // If renameTo doesn't work, try to copy files
