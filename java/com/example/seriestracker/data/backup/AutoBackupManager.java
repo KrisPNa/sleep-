@@ -13,12 +13,15 @@ import androidx.core.content.ContextCompat;
 import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.data.entities.SeriesCollectionCrossRef;
+import com.example.seriestracker.data.entities.MediaFile;
 import com.example.seriestracker.data.repository.SeriesRepository;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
@@ -111,20 +114,25 @@ public class AutoBackupManager {
             List<Collection> collections = repository.getAllCollectionsSync();
             List<Series> series = repository.getAllSeriesSync();
             List<SeriesCollectionCrossRef> relations = repository.getAllRelationsSync();
+            List<MediaFile> mediaFiles = repository.getAllMediaFilesSync();
 
-            if (collections == null || series == null || relations == null) {
+            if (collections == null || series == null || relations == null || mediaFiles == null) {
                 Log.e(TAG, "Failed to get data for backup");
                 return;
             }
 
-            Log.d(TAG, "Data retrieved: " + collections.size() + " collections, " +
-                    series.size() + " series, " + relations.size() + " relations");
+            Log.d(TAG, "Data retrieved: " +
+                    collections.size() + " collections, " +
+                    series.size() + " series, " +
+                    relations.size() + " relations, " +
+                    mediaFiles.size() + " media files");
 
             // Создаем объект бэкапа
             BackupData backupData = new BackupData();
             backupData.collections = collections;
             backupData.series = series;
             backupData.relations = relations;
+            backupData.mediaFiles = mediaFiles;
             backupData.timestamp = System.currentTimeMillis();
             backupData.version = 1;
 
@@ -189,7 +197,9 @@ public class AutoBackupManager {
 
             Log.d(TAG, "Parsed backup: " +
                     (backupData.collections != null ? backupData.collections.size() : 0) + " collections, " +
-                    (backupData.series != null ? backupData.series.size() : 0) + " series");
+
+                    (backupData.series != null ? backupData.series.size() : 0) + " series, " +
+                    (backupData.mediaFiles != null ? backupData.mediaFiles.size() : 0) + " media files");
 
             // Очищаем текущие данные
             repository.deleteAllData();
@@ -245,6 +255,26 @@ public class AutoBackupManager {
                 }
             }
 
+            // Восстанавливаем медиафайлы
+            if (backupData.mediaFiles != null) {
+                for (MediaFile mediaFile : backupData.mediaFiles) {
+                    Long oldSeriesId = mediaFile.getSeriesId();
+                    Long newSeriesId = seriesIdMap.get(oldSeriesId);
+
+                    if (newSeriesId != null) {
+                        // Обновляем ID сериала для нового файла
+                        mediaFile.setSeriesId(newSeriesId);
+                        // Сбрасываем ID для новой вставки
+                        mediaFile.setId(0);
+
+                        long newMediaId = repository.insertMediaFileSync(mediaFile);
+                        if (newMediaId > 0) {
+                            Log.d(TAG, "Restored media file: " + mediaFile.getFileName() +
+                                    " for series ID: " + newSeriesId);
+                        }
+                    }
+                }
+            }
             Log.i(TAG, "Restore completed successfully");
             return true;
 
@@ -287,7 +317,8 @@ public class AutoBackupManager {
 
             Log.d(TAG, "Parsed backup from URI: " +
                     (backupData.collections != null ? backupData.collections.size() : 0) + " collections, " +
-                    (backupData.series != null ? backupData.series.size() : 0) + " series");
+                    (backupData.series != null ? backupData.series.size() : 0) + " series, " +
+                    (backupData.mediaFiles != null ? backupData.mediaFiles.size() : 0) + " media files");
 
             // Очищаем текущие данные
             repository.deleteAllData();
@@ -343,6 +374,26 @@ public class AutoBackupManager {
                 }
             }
 
+            // Восстанавливаем медиафайлы
+            if (backupData.mediaFiles != null) {
+                for (MediaFile mediaFile : backupData.mediaFiles) {
+                    Long oldSeriesId = mediaFile.getSeriesId();
+                    Long newSeriesId = seriesIdMap.get(oldSeriesId);
+
+                    if (newSeriesId != null) {
+                        // Обновляем ID сериала для нового файла
+                        mediaFile.setSeriesId(newSeriesId);
+                        // Сбрасываем ID для новой вставки
+                        mediaFile.setId(0);
+
+                        long newMediaId = repository.insertMediaFileSync(mediaFile);
+                        if (newMediaId > 0) {
+                            Log.d(TAG, "Restored media file from URI: " + mediaFile.getFileName() +
+                                    " for series ID: " + newSeriesId);
+                        }
+                    }
+                }
+            }
             Log.i(TAG, "Restore from URI completed successfully");
             return true;
 
@@ -511,6 +562,7 @@ public class AutoBackupManager {
         public List<Collection> collections;
         public List<Series> series;
         public List<SeriesCollectionCrossRef> relations;
+        public List<MediaFile> mediaFiles;
         public long timestamp;
         public int version;
     }
