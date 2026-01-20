@@ -200,4 +200,13 @@ public interface SeriesDao {
     @Query("SELECT * FROM media_files WHERE id = :mediaId")
     MediaFile getMediaFileSync(long mediaId);
 
+    @Query("SELECT * FROM collections WHERE name = :name")
+    Collection getCollectionByName(String name);
+
+    @Query("SELECT * FROM series WHERE title = :title")
+    Series getSeriesByTitle(String title);
+
+    @Query("SELECT * FROM media_files WHERE fileUri = :fileUri AND seriesId = :seriesId")
+    MediaFile getMediaFileByUriAndSeries(String fileUri, long seriesId);
+
 }

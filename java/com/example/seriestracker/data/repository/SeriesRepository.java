@@ -464,5 +464,58 @@ public class SeriesRepository {
             return -1;
         }
     }
+    // === Дополнительные методы для восстановления из резервной копии ===
 
+    public Collection getCollectionByNameSync(String name) {
+        try {
+            Future<Collection> future = executor.submit(() ->
+                    seriesDao.getCollectionByName(name)
+            );
+            return future.get();
+        } catch (Exception e) {
+            Log.e("SeriesRepository", "Error getting collection by name sync", e);
+            return null;
+        }
+    }
+
+    public Series getSeriesByTitleSync(String title) {
+        try {
+            Future<Series> future = executor.submit(() ->
+                    seriesDao.getSeriesByTitle(title)
+            );
+            return future.get();
+        } catch (Exception e) {
+            Log.e("SeriesRepository", "Error getting series by title sync", e);
+            return null;
+        }
+    }
+
+    public boolean checkRelationExistsSync(long seriesId, long collectionId) {
+        try {
+            Future<Integer> future = executor.submit(() ->
+                    seriesDao.isSeriesInCollection(seriesId, collectionId)
+            );
+            Integer count = future.get();
+            return count != null && count > 0;
+        } catch (Exception e) {
+            Log.e("SeriesRepository", "Error checking relation exists sync", e);
+            return false;
+        }
+    }
+
+    public MediaFile getMediaFileByUriAndSeriesSync(String fileUri, long seriesId) {
+        try {
+            Future<MediaFile> future = executor.submit(() ->
+                    seriesDao.getMediaFileByUriAndSeries(fileUri, seriesId)
+            );
+            return future.get();
+        } catch (Exception e) {
+            Log.e("SeriesRepository", "Error getting media file by URI and series sync", e);
+            return null;
+        }
+    }
+
+    public void updateSeriesSync(Series series) {
+        executor.execute(() -> seriesDao.updateSeries(series));
+    }
 }
