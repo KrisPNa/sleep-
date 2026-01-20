@@ -3,20 +3,26 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
         android:id="@+id/action_add_series"
-        android:title="Добавить сериал"
         android:icon="@drawable/ic_baseline_add_24"
+        android:title="Добавить сериал"
         app:showAsAction="never" />
 
     <item
         android:id="@+id/action_edit"
-        android:title="Редактировать"
         android:icon="@drawable/ic_baseline_edit_24"
+        android:title="Редактировать"
         app:showAsAction="never" />
 
     <item
         android:id="@+id/action_delete"
-        android:title="Удалить"
         android:icon="@drawable/ic_baseline_delete_24"
+        android:title="Удалить"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_random"
+        android:icon="@drawable/ic_baseline_shuffle_24"
+        android:title="Случайный сериал"
         app:showAsAction="never" />
 
 </menu>
