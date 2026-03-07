@@ -1,3 +1,4 @@
+
 package com.example.seriestracker.ui.screens;
 
 import android.Manifest;
@@ -38,6 +39,7 @@ public class AddSeriesScreen extends Fragment {
 
     private static final int PICK_IMAGE_REQUEST = 1;
     private static final int REQUEST_READ_EXTERNAL_STORAGE = 2;
+    private static final String ARG_SHARED_TEXT = "shared_text";
 
     private SeriesViewModel viewModel;
     private EditText titleEditText;
@@ -51,6 +53,7 @@ public class AddSeriesScreen extends Fragment {
     private Uri selectedImageUri;
     private final List<Long> selectedCollectionIds = new ArrayList<>();
     private boolean isChecking = false; // Флаг для предотвращения повторных проверок
+    private String sharedText; // Текст, полученный через функцию "Поделиться"
 
     public AddSeriesScreen() {
         // Required empty public constructor
@@ -68,8 +71,18 @@ public class AddSeriesScreen extends Fragment {
 
         viewModel = new ViewModelProvider(requireActivity()).get(SeriesViewModel.class);
 
+        // Получаем текст, если он был передан через функцию "Поделиться"
+        if (getArguments() != null) {
+            sharedText = getArguments().getString(ARG_SHARED_TEXT);
+        }
+
         // Инициализация элементов
         initViews(view);
+
+        // Если есть текст из функции "Поделиться", вставляем его в поле заметок
+        if (sharedText != null && !sharedText.isEmpty()) {
+            notesEditText.setText(sharedText);
+        }
 
         // Устанавливаем фокус на первое поле
         titleEditText.requestFocus();
@@ -186,8 +199,9 @@ public class AddSeriesScreen extends Fragment {
                 viewModel.addSeries(title, imageUri, selectedCollectionIds, notes);
                 Toast.makeText(getContext(), "Сериал добавлен!", Toast.LENGTH_SHORT).show();
 
-                // Возвращаемся на главный экран
-                requireActivity().getSupportFragmentManager().popBackStack();
+                // Возвращаемся на главный экран, очищая весь стек фрагментов
+                requireActivity().getSupportFragmentManager().popBackStack(null,
+                        androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE);
             }
         });
     }
