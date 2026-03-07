@@ -20,6 +20,14 @@ public class BackupFileManager {
      * Копирует файл из URI во временный каталог резервной копии
      */
     public static String copyFileToBackupDir(Context context, Uri sourceUri, String fileName, String backupDirPath) {
+        return copyFileToBackupDir(context, sourceUri, fileName, backupDirPath, true); // по умолчанию всегда копируем
+    }
+
+    /**
+     * Копирует файл из URI во временный каталог резервной копии
+     * @param alwaysCopy если true, то файл будет скопирован даже если с таким именем уже существует файл в той же сессии копирования
+     */
+    public static String copyFileToBackupDir(Context context, Uri sourceUri, String fileName, String backupDirPath, boolean alwaysCopy) {
         try {
             // Создаем подкаталог для файлов в директории резервной копии
             File backupFilesDir = new File(backupDirPath, "files");
@@ -49,10 +57,16 @@ public class BackupFileManager {
             }
 
             // Проверяем и создаем уникальное имя, если файл уже существует
-            while (destinationFile.exists()) {
-                finalFileName = nameWithoutExtension + " (" + counter + ")" + extension;
+            // Если alwaysCopy=true, то добавляем уникальный идентификатор, чтобы гарантировать копирование
+            if (alwaysCopy) {
+                finalFileName = nameWithoutExtension + " (backup_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8) + ")" + extension;
                 destinationFile = new File(backupFilesDir, finalFileName);
-                counter++;
+            } else {
+                while (destinationFile.exists()) {
+                    finalFileName = nameWithoutExtension + " (" + counter + ")" + extension;
+                    destinationFile = new File(backupFilesDir, finalFileName);
+                    counter++;
+                }
             }
 
             // Копируем файл
@@ -151,6 +165,87 @@ public class BackupFileManager {
             return null;
         }
     }
+
+    /**
+     * Копирует файл из внутреннего хранилища приложения во временный каталог резервной копии
+     * @param alwaysCopy если true, то файл будет скопирован даже если с таким именем уже существует файл в той же сессии копирования
+     */
+    public static String copyInternalFileToBackupDir(Context context, String sourcePath, String fileName, String backupDirPath, boolean alwaysCopy) {
+        try {
+            File sourceFile = new File(sourcePath);
+            if (!sourceFile.exists()) {
+                Log.e(TAG, "Source file does not exist: " + sourcePath);
+                return null;
+            }
+
+            // Создаем подкаталог для файлов в директории резервной копии
+            File backupFilesDir = new File(backupDirPath, "files");
+            if (!backupFilesDir.exists()) {
+                if (!backupFilesDir.mkdirs()) {
+                    Log.e(TAG, "Failed to create backup files directory: " + backupFilesDir.getAbsolutePath());
+                    return null;
+                }
+            }
+
+            // Если имя файла передано как пустое или null, извлекаем оригинальное имя из пути к исходному файлу
+            String finalFileName;
+            if (fileName == null || fileName.isEmpty()) {
+                // Извлекаем оригинальное имя файла из UUID-префиксированного имени в пути
+                String sourceFileName = sourceFile.getName();
+                finalFileName = extractOriginalFilenameFromPrefixed(sourceFileName);
+            } else {
+                finalFileName = fileName;
+            }
+
+            File destinationFile = new File(backupFilesDir, finalFileName);
+
+            // Если файл с таким именем уже существует, добавляем номер в конце
+            String nameWithoutExtension = "";
+            String extension = "";
+            int dotIndex = finalFileName.lastIndexOf('.');
+
+            if (dotIndex > 0) {
+                nameWithoutExtension = finalFileName.substring(0, dotIndex);
+                extension = finalFileName.substring(dotIndex);
+            } else {
+                nameWithoutExtension = finalFileName;
+                extension = "";
+            }
+
+            // Проверяем и создаем уникальное имя, если файл уже существует
+            // Если alwaysCopy=true, то добавляем уникальный идентификатор, чтобы гарантировать копирование
+            if (alwaysCopy) {
+                finalFileName = nameWithoutExtension + " (backup_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8) + ")" + extension;
+                destinationFile = new File(backupFilesDir, finalFileName);
+            } else {
+                int counter = 1;
+                while (destinationFile.exists()) {
+                    finalFileName = nameWithoutExtension + " (" + counter + ")" + extension;
+                    destinationFile = new File(backupFilesDir, finalFileName);
+                    counter++;
+                }
+            }
+
+            // Копируем файл
+            try (FileInputStream inputStream = new FileInputStream(sourceFile);
+                 FileOutputStream outputStream = new FileOutputStream(destinationFile)) {
+
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                outputStream.flush();
+
+                Log.d(TAG, "Successfully copied internal file to backup: " + destinationFile.getAbsolutePath());
+                return "files/" + finalFileName; // Возвращаем относительный путь
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error copying internal file to backup: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
     /**
      * Восстанавливает файл из резервной копии во внутреннее хранилище приложения
      */

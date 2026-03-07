@@ -171,7 +171,8 @@ public class AutoBackupManager {
                                     context,
                                     mediaFile.getFileUri(),
                                     "", // Передаем пустое имя файла, чтобы извлечь оригинальное имя из пути
-                                    tempBackupDir.getAbsolutePath()
+                                    tempBackupDir.getAbsolutePath(),
+                                    true // Всегда копируем файлы, даже если они уже существуют
                             );
                         } else {
                             // Иначе это URI из галереи или другого источника
@@ -179,7 +180,8 @@ public class AutoBackupManager {
                                     context,
                                     fileUri,
                                     mediaFile.getFileName(),
-                                    tempBackupDir.getAbsolutePath()
+                                    tempBackupDir.getAbsolutePath(),
+                                    true // Всегда копируем файлы, даже если они уже существуют
                             );
                         }
 
@@ -223,7 +225,8 @@ public class AutoBackupManager {
                                     context,
                                     seriesItem.getImageUri(),
                                     "", // Передаем пустое имя файла, чтобы извлечь оригинальное имя из пути
-                                    tempBackupDir.getAbsolutePath()
+                                    tempBackupDir.getAbsolutePath(),
+                                    true // Всегда копируем файлы, даже если они уже существуют
                             );
                         } else {
                             Uri imageUri = Uri.parse(seriesItem.getImageUri());
@@ -242,7 +245,8 @@ public class AutoBackupManager {
                                     context,
                                     imageUri,
                                     originalFileName,
-                                    tempBackupDir.getAbsolutePath()
+                                    tempBackupDir.getAbsolutePath(),
+                                    true // Всегда копируем файлы, даже если они уже существуют
                             );
                         }
 
