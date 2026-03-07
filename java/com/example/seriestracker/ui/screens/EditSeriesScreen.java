@@ -1,3 +1,4 @@
+
 package com.example.seriestracker.ui.screens;
 
 import android.Manifest;
@@ -25,6 +26,8 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.text.method.LinkMovementMethod;
+import android.text.util.Linkify;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -72,6 +75,7 @@ public class EditSeriesScreen extends Fragment {
     // UI элементы
     private EditText titleEditText;
     private EditText notesEditText;
+    private TextView notesTextView;
     private EditText genreEditText;
     private EditText seasonsEditText;
     private EditText episodesEditText;
@@ -149,6 +153,7 @@ public class EditSeriesScreen extends Fragment {
     private void initViews(View view) {
         titleEditText = view.findViewById(R.id.titleEditText);
         notesEditText = view.findViewById(R.id.notesEditText);
+        notesTextView = view.findViewById(R.id.notesTextView);
         genreEditText = view.findViewById(R.id.genreEditText);
         seasonsEditText = view.findViewById(R.id.seasonsEditText);
         episodesEditText = view.findViewById(R.id.episodesEditText);
@@ -194,10 +199,24 @@ public class EditSeriesScreen extends Fragment {
             editButton.setVisibility(View.VISIBLE);
             saveButton.setVisibility(View.GONE);
             deleteButton.setVisibility(View.GONE);
+
+            // В режиме просмотра скрываем EditText и показываем TextView
+            notesEditText.setVisibility(View.GONE);
+            notesTextView.setVisibility(View.VISIBLE);
+
+            // Копируем текст из EditText в TextView и делаем ссылки кликабельными
+            String notesText = notesEditText.getText().toString();
+            notesTextView.setText(notesText);
+            Linkify.addLinks(notesTextView, Linkify.ALL);
+            notesTextView.setMovementMethod(LinkMovementMethod.getInstance());
         } else {
             editButton.setVisibility(View.GONE);
             saveButton.setVisibility(View.VISIBLE);
             deleteButton.setVisibility(View.VISIBLE);
+
+            // В режиме редактирования показываем EditText и скрываем TextView
+            notesEditText.setVisibility(View.VISIBLE);
+            notesTextView.setVisibility(View.GONE);
         }
 
         // Управление редактируемостью полей
@@ -302,6 +321,13 @@ public class EditSeriesScreen extends Fragment {
     private void populateForm(Series series) {
         titleEditText.setText(series.getTitle());
         notesEditText.setText(series.getNotes());
+
+        // Также устанавливаем текст в notesTextView для режима просмотра
+        String notesText = series.getNotes();
+        notesTextView.setText(notesText);
+        Linkify.addLinks(notesTextView, Linkify.ALL);
+        notesTextView.setMovementMethod(LinkMovementMethod.getInstance());
+
         genreEditText.setText(series.getGenre());
 
         if (series.getSeasons() > 0) {
