@@ -31,6 +31,7 @@ import android.text.util.Linkify;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
@@ -524,18 +525,8 @@ public class EditSeriesScreen extends Fragment {
             permissions = new String[]{Manifest.permission.READ_EXTERNAL_STORAGE};
         }
 
-        if (shouldShowRequestPermissionRationale(Manifest.permission.READ_EXTERNAL_STORAGE)) {
-            new AlertDialog.Builder(requireContext())
-                    .setTitle("Нужно разрешение")
-                    .setMessage("Для выбора медиафайлов необходимо разрешение на доступ к галерее")
-                    .setPositiveButton("OK", (dialog, which) -> {
-                        requestPermissions(permissions, REQUEST_MEDIA_PERMISSION);
-                    })
-                    .setNegativeButton("Отмена", null)
-                    .show();
-        } else {
-            requestPermissions(permissions, REQUEST_MEDIA_PERMISSION);
-        }
+        // Запрашиваем разрешение без повторных диалогов
+        ActivityCompat.requestPermissions(requireActivity(), permissions, REQUEST_MEDIA_PERMISSION);
     }
 
     private boolean checkSeriesImagePermission() {
@@ -556,18 +547,8 @@ public class EditSeriesScreen extends Fragment {
             permissions = new String[]{Manifest.permission.READ_EXTERNAL_STORAGE};
         }
 
-        if (shouldShowRequestPermissionRationale(Manifest.permission.READ_EXTERNAL_STORAGE)) {
-            new AlertDialog.Builder(requireContext())
-                    .setTitle("Нужно разрешение")
-                    .setMessage("Для выбора изображения сериала необходимо разрешение на доступ к галерее")
-                    .setPositiveButton("OK", (dialog, which) -> {
-                        requestPermissions(permissions, REQUEST_SERIES_IMAGE_PERMISSION);
-                    })
-                    .setNegativeButton("Отмена", null)
-                    .show();
-        } else {
-            requestPermissions(permissions, REQUEST_SERIES_IMAGE_PERMISSION);
-        }
+        // Запрашиваем разрешение без повторных диалогов
+        ActivityCompat.requestPermissions(requireActivity(), permissions, REQUEST_SERIES_IMAGE_PERMISSION);
     }
 
     private void openSeriesImagePicker() {
