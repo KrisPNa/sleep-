@@ -165,17 +165,13 @@ public class BackupSettingsScreen extends Fragment {
     }
 
     private void requestWritePermissions() {
-        if (shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            showPermissionRationaleDialog();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            permissionLauncher.launch(new String[]{
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+            });
         } else {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                permissionLauncher.launch(new String[]{
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                        Manifest.permission.READ_EXTERNAL_STORAGE
-                });
-            } else {
-                createBackupWithPermission();
-            }
+            createBackupWithPermission();
         }
     }
 
