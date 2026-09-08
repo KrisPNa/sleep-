@@ -16,16 +16,84 @@ import com.example.seriestracker.data.entities.CollectionWithSeries;
 import com.example.seriestracker.data.entities.MediaFile;
 import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.data.entities.SeriesCollectionCrossRef;
+import com.example.seriestracker.data.sync.SyncEngine;
+import com.example.seriestracker.utils.WatchLinkTextHelper;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class SeriesRepository {
+    public enum AppendNotesResult {
+        ADDED,
+        ALREADY_PRESENT,
+        NOTHING_TO_APPEND,
+        SERIES_NOT_FOUND
+    }
+
+    public static class AppendNotesOutcome {
+        public final AppendNotesResult result;
+        public final long seriesId;
+
+        public AppendNotesOutcome(AppendNotesResult result, long seriesId) {
+            this.result = result;
+            this.seriesId = seriesId;
+        }
+    }
+
+    public enum SetWatchUrlResult {
+        UPDATED,
+        ALREADY_PRESENT,
+        EMPTY_URL,
+        SERIES_NOT_FOUND
+    }
+
+    public static class SetWatchUrlOutcome {
+        public final SetWatchUrlResult result;
+        public final long seriesId;
+
+        public SetWatchUrlOutcome(SetWatchUrlResult result, long seriesId) {
+            this.result = result;
+            this.seriesId = seriesId;
+        }
+    }
+
+    public interface SetWatchUrlCallback {
+        void onResult(SetWatchUrlOutcome outcome);
+    }
+
+    public static class UpdateExistingSeriesOutcome {
+        public final long seriesId;
+        public final boolean seriesFound;
+
+        public UpdateExistingSeriesOutcome(long seriesId, boolean seriesFound) {
+            this.seriesId = seriesId;
+            this.seriesFound = seriesFound;
+        }
+    }
+
+    public interface UpdateExistingSeriesCallback {
+        void onResult(UpdateExistingSeriesOutcome outcome);
+    }
+
+    public interface AppendNotesCallback {
+        void onResult(AppendNotesOutcome outcome);
+    }
+
+    public interface InsertSeriesCallback {
+        void onSeriesInserted(long seriesId);
+    }
+
+    public interface InsertCollectionCallback {
+        void onCollectionInserted(long collectionId);
+    }
+
     private SeriesDao seriesDao;
+    private Application application;
     private ExecutorService executor = Executors.newSingleThreadExecutor();
     private Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -34,8 +102,10 @@ public class SeriesRepository {
 
     // Приватный конструктор
     public SeriesRepository(Application application) {
+        this.application = application;
         SeriesDatabase database = SeriesDatabase.getDatabase(application);
         seriesDao = database.seriesDao();
+        instance = this;
     }
 
     // Статический метод для получения экземпляра с Application
@@ -54,6 +124,32 @@ public class SeriesRepository {
         return instance;
     }
 
+    private void prepareSeries(Series series) {
+        if (series.getCloudId() == null || series.getCloudId().isEmpty()) {
+            series.setCloudId(UUID.randomUUID().toString());
+        }
+        series.markDirty();
+    }
+
+    private void prepareCollection(Collection collection) {
+        if (collection.getCloudId() == null || collection.getCloudId().isEmpty()) {
+            collection.setCloudId(UUID.randomUUID().toString());
+        }
+        collection.markDirty();
+    }
+
+    private void prepareMedia(MediaFile mediaFile) {
+        if (mediaFile.getCloudId() == null || mediaFile.getCloudId().isEmpty()) {
+            mediaFile.setCloudId(UUID.randomUUID().toString());
+        }
+        mediaFile.markDirty();
+    }
+
+    private void triggerSync() {
+        if (application == null) return;
+        SyncEngine.getInstance(application).requestSync();
+    }
+
     // === Коллекции ===
     public LiveData<List<Collection>> getAllCollections() {
         return seriesDao.getAllCollections();
@@ -69,19 +165,43 @@ public class SeriesRepository {
     }
 
     public void insertCollection(Collection collection) {
-        executor.execute(() -> seriesDao.insertCollection(collection));
+        insertCollection(collection, null);
+    }
+
+    public void insertCollection(Collection collection, InsertCollectionCallback callback) {
+        executor.execute(() -> {
+            prepareCollection(collection);
+            long collectionId = seriesDao.insertCollectionSync(collection);
+            triggerSync();
+            if (callback != null) {
+                mainHandler.post(() -> callback.onCollectionInserted(collectionId));
+            }
+        });
     }
 
     public void deleteCollection(long collectionId) {
-        executor.execute(() -> seriesDao.deleteCollection(collectionId));
+        executor.execute(() -> {
+            Collection c = null;
+            for (Collection col : seriesDao.getAllCollectionsSync()) {
+                if (col.getId() == collectionId) {
+                    c = col;
+                    break;
+                }
+            }
+            seriesDao.deleteCollection(collectionId);
+            if (c != null && c.getCloudId() != null) {
+                SyncEngine.getInstance(application).deleteCollectionRemote(c.getCloudId());
+            }
+        });
     }
 
     public void deleteCollection(Collection collection) {
         executor.execute(() -> {
-            // Удаляем сначала все связи
             deleteAllSeriesCollectionRelationsForCollection(collection.getId());
-            // Затем удаляем саму коллекцию
             seriesDao.deleteCollection(collection.getId());
+            if (collection.getCloudId() != null) {
+                SyncEngine.getInstance(application).deleteCollectionRemote(collection.getCloudId());
+            }
         });
     }
 
@@ -89,6 +209,7 @@ public class SeriesRepository {
         executor.execute(() -> {
             // Удаляем все связи сериалов с этой коллекцией
             seriesDao.deleteAllSeriesCollectionRelationsForCollection(collectionId);
+            triggerSync();
         });
     }
 
@@ -102,25 +223,60 @@ public class SeriesRepository {
     }
 
     public void insertSeries(Series series) {
-        executor.execute(() -> seriesDao.insertSeries(series));
+        executor.execute(() -> {
+            prepareSeries(series);
+            seriesDao.insertSeries(series);
+            triggerSync();
+        });
     }
 
     public void updateSeries(Series series) {
-        executor.execute(() -> seriesDao.updateSeries(series));
+        executor.execute(() -> {
+            prepareSeries(series);
+            seriesDao.updateSeries(series);
+            triggerSync();
+        });
     }
 
     public void deleteSeries(long seriesId) {
-        executor.execute(() -> seriesDao.deleteSeries(seriesId));
+        executor.execute(() -> {
+            Series s = seriesDao.getSeriesByIdSync(seriesId);
+            // Явно чистим связи/медиа до удаления (на случай FK без cascade в старых БД)
+            try {
+                seriesDao.deleteAllMediaFilesForSeries(seriesId);
+            } catch (Exception ignored) {
+            }
+            try {
+                seriesDao.deleteAllSeriesCollectionRelationsForSeries(seriesId);
+            } catch (Exception ignored) {
+            }
+            seriesDao.deleteSeries(seriesId);
+            if (s != null && s.getCloudId() != null && !s.getCloudId().isEmpty()) {
+                // Удаление из Supabase (+ повтор при следующем sync). Без полного pull сразу после.
+                SyncEngine.getInstance(application).deleteSeriesRemote(s.getCloudId());
+            }
+        });
     }
 
     public void insertSeriesWithCollections(Series series, List<Long> collectionIds) {
+        insertSeriesWithCollections(series, collectionIds, null);
+    }
+
+    public void insertSeriesWithCollections(Series series, List<Long> collectionIds,
+                                            InsertSeriesCallback callback) {
         executor.execute(() -> {
+            prepareSeries(series);
             long seriesId = seriesDao.insertSeries(series);
             if (collectionIds != null) {
                 for (Long collectionId : collectionIds) {
                     SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
+                    crossRef.markDirty();
                     seriesDao.insertCrossRef(crossRef);
                 }
+            }
+            triggerSync();
+            if (callback != null) {
+                mainHandler.post(() -> callback.onSeriesInserted(seriesId));
             }
         });
     }
@@ -130,15 +286,37 @@ public class SeriesRepository {
         executor.execute(() -> {
             seriesDao.updateSeriesWatchedStatus(seriesId, isWatched);
             seriesDao.updateCrossRefWatchedStatus(seriesId, isWatched);
+            Series s = seriesDao.getSeriesByIdSync(seriesId);
+            if (s != null) {
+                prepareSeries(s);
+                seriesDao.updateSeries(s);
+            }
+            triggerSync();
         });
     }
 
     public void updateSeriesFavoriteStatus(long seriesId, boolean isFavorite) {
-        executor.execute(() -> seriesDao.updateSeriesFavoriteStatus(seriesId, isFavorite));
+        executor.execute(() -> {
+            seriesDao.updateSeriesFavoriteStatus(seriesId, isFavorite);
+            Series s = seriesDao.getSeriesByIdSync(seriesId);
+            if (s != null) {
+                prepareSeries(s);
+                seriesDao.updateSeries(s);
+            }
+            triggerSync();
+        });
     }
 
     public void updateSeriesStatus(long seriesId, String status) {
-        executor.execute(() -> seriesDao.updateSeriesStatus(seriesId, status));
+        executor.execute(() -> {
+            seriesDao.updateSeriesStatus(seriesId, status);
+            Series s = seriesDao.getSeriesByIdSync(seriesId);
+            if (s != null) {
+                prepareSeries(s);
+                seriesDao.updateSeries(s);
+            }
+            triggerSync();
+        });
     }
 
     // === Получение данных ===
@@ -156,13 +334,30 @@ public class SeriesRepository {
             int count = seriesDao.isSeriesInCollection(seriesId, collectionId);
             if (count == 0) {
                 SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
+                crossRef.markDirty();
                 seriesDao.insertCrossRef(crossRef);
+                triggerSync();
             }
         });
     }
 
     public void removeSeriesFromCollection(long seriesId, long collectionId) {
-        executor.execute(() -> seriesDao.removeSeriesFromCollection(seriesId, collectionId));
+        executor.execute(() -> {
+            Series s = seriesDao.getSeriesByIdSync(seriesId);
+            Collection c = null;
+            for (Collection col : seriesDao.getAllCollectionsSync()) {
+                if (col.getId() == collectionId) {
+                    c = col;
+                    break;
+                }
+            }
+            seriesDao.removeSeriesFromCollection(seriesId, collectionId);
+            if (s != null && c != null && s.getCloudId() != null && c.getCloudId() != null) {
+                SyncEngine.getInstance(application)
+                        .deleteCrossRefRemote(s.getCloudId(), c.getCloudId());
+            }
+            triggerSync();
+        });
     }
 
     public LiveData<List<Collection>> getCollectionsForSeries(long seriesId) {
@@ -198,9 +393,155 @@ public class SeriesRepository {
         return seriesDao.doesSeriesExist(seriesTitle);
     }
 
+    public LiveData<Boolean> doesSeriesExistExcludeId(String seriesTitle, long seriesId) {
+        return seriesDao.doesSeriesExistExcludeId(seriesTitle, seriesId);
+    }
+
+    public void appendNotesToSeriesByTitle(String title, String notesToAppend, AppendNotesCallback callback) {
+        executor.execute(() -> {
+            AppendNotesOutcome outcome = appendNotesToSeriesByTitleInternal(title, notesToAppend);
+            mainHandler.post(() -> callback.onResult(outcome));
+        });
+    }
+
+    public void setWatchUrlOnSeriesByTitle(String title, String watchUrl, SetWatchUrlCallback callback) {
+        executor.execute(() -> {
+            SetWatchUrlOutcome outcome = setWatchUrlOnSeriesByTitleInternal(title, watchUrl);
+            mainHandler.post(() -> callback.onResult(outcome));
+        });
+    }
+
+    public void updateExistingSeriesByTitle(String title, String watchUrl, String notesToAppend,
+                                            UpdateExistingSeriesCallback callback) {
+        updateExistingSeriesByTitle(title, null, watchUrl, notesToAppend, callback);
+    }
+
+    public void updateExistingSeriesByTitle(String title, String watchAt, String watchUrl,
+                                            String notesToAppend,
+                                            UpdateExistingSeriesCallback callback) {
+        executor.execute(() -> {
+            UpdateExistingSeriesOutcome outcome =
+                    updateExistingSeriesByTitleInternal(title, watchAt, watchUrl, notesToAppend);
+            mainHandler.post(() -> callback.onResult(outcome));
+        });
+    }
+
+    private UpdateExistingSeriesOutcome updateExistingSeriesByTitleInternal(String title,
+                                                                            String watchAt,
+                                                                            String watchUrl,
+                                                                            String notesToAppend) {
+        Series series = seriesDao.getSeriesByTitleIgnoreCase(title);
+        if (series == null) {
+            return new UpdateExistingSeriesOutcome(-1, false);
+        }
+
+        boolean changed = false;
+        String trimmedWatchAt = watchAt == null ? "" : watchAt.trim();
+        if (!trimmedWatchAt.isEmpty()) {
+            String existingWatchAt = series.getWatchAt();
+            String mergedWatchAt = WatchLinkTextHelper.mergeUrls(
+                    existingWatchAt, WatchLinkTextHelper.splitUrls(trimmedWatchAt));
+            if (!mergedWatchAt.equals(existingWatchAt != null ? existingWatchAt.trim() : "")) {
+                series.setWatchAt(mergedWatchAt);
+                changed = true;
+            }
+        }
+
+        String trimmedUrl = watchUrl == null ? "" : watchUrl.trim();
+        if (!trimmedUrl.isEmpty()) {
+            String existingUrl = series.getWatchUrl();
+            String mergedUrl = WatchLinkTextHelper.mergeUrls(
+                    existingUrl, WatchLinkTextHelper.splitUrls(trimmedUrl));
+            if (!mergedUrl.equals(existingUrl != null ? existingUrl.trim() : "")) {
+                series.setWatchUrl(mergedUrl);
+                changed = true;
+            }
+        }
+
+        String trimmedNotes = notesToAppend == null ? "" : notesToAppend.trim();
+        if (!trimmedNotes.isEmpty()) {
+            String existingNotes = series.getNotes();
+            if (existingNotes == null) {
+                existingNotes = "";
+            }
+            if (!existingNotes.contains(trimmedNotes)) {
+                String newNotes = existingNotes.isEmpty()
+                        ? trimmedNotes
+                        : existingNotes + "\n" + trimmedNotes;
+                series.setNotes(newNotes);
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            seriesDao.updateSeries(series);
+        }
+        return new UpdateExistingSeriesOutcome(series.getId(), true);
+    }
+
+    private SetWatchUrlOutcome setWatchUrlOnSeriesByTitleInternal(String title, String watchUrl) {
+        String trimmedUrl = watchUrl == null ? "" : watchUrl.trim();
+        if (trimmedUrl.isEmpty()) {
+            return new SetWatchUrlOutcome(SetWatchUrlResult.EMPTY_URL, -1);
+        }
+
+        Series series = seriesDao.getSeriesByTitleIgnoreCase(title);
+        if (series == null) {
+            return new SetWatchUrlOutcome(SetWatchUrlResult.SERIES_NOT_FOUND, -1);
+        }
+
+        long seriesId = series.getId();
+        String existingUrl = series.getWatchUrl();
+        String mergedUrl = WatchLinkTextHelper.mergeUrls(
+                existingUrl, WatchLinkTextHelper.splitUrls(trimmedUrl));
+        String normalizedExisting = existingUrl != null ? existingUrl.trim() : "";
+        if (mergedUrl.equals(normalizedExisting)) {
+            return new SetWatchUrlOutcome(SetWatchUrlResult.ALREADY_PRESENT, seriesId);
+        }
+
+        series.setWatchUrl(mergedUrl);
+        seriesDao.updateSeries(series);
+        return new SetWatchUrlOutcome(SetWatchUrlResult.UPDATED, seriesId);
+    }
+
+    private AppendNotesOutcome appendNotesToSeriesByTitleInternal(String title, String notesToAppend) {
+        String trimmedAppend = notesToAppend == null ? "" : notesToAppend.trim();
+        if (trimmedAppend.isEmpty()) {
+            return new AppendNotesOutcome(AppendNotesResult.NOTHING_TO_APPEND, -1);
+        }
+
+        Series series = seriesDao.getSeriesByTitleIgnoreCase(title);
+        if (series == null) {
+            return new AppendNotesOutcome(AppendNotesResult.SERIES_NOT_FOUND, -1);
+        }
+
+        long seriesId = series.getId();
+        String existingNotes = series.getNotes();
+        if (existingNotes == null) {
+            existingNotes = "";
+        }
+
+        if (existingNotes.contains(trimmedAppend)) {
+            return new AppendNotesOutcome(AppendNotesResult.ALREADY_PRESENT, seriesId);
+        }
+
+        String newNotes = existingNotes.isEmpty()
+                ? trimmedAppend
+                : existingNotes + "\n" + trimmedAppend;
+        series.setNotes(newNotes);
+        prepareSeries(series);
+        seriesDao.updateSeries(series);
+        triggerSync();
+        return new AppendNotesOutcome(AppendNotesResult.ADDED, seriesId);
+    }
+
     // Обновление коллекции
     public void updateCollection(Collection collection) {
-        executor.execute(() -> seriesDao.updateCollection(collection));
+        executor.execute(() -> {
+            prepareCollection(collection);
+            seriesDao.updateCollection(collection);
+            triggerSync();
+        });
     }
 
     // === Методы для резервного копирования (синхронные версии) ===
@@ -270,7 +611,12 @@ public class SeriesRepository {
     }
 
     public void insertCrossRefSync(SeriesCollectionCrossRef crossRef) {
-        executor.execute(() -> seriesDao.insertCrossRefSync(crossRef));
+        try {
+            Future<?> future = executor.submit(() -> seriesDao.insertCrossRefSync(crossRef));
+            future.get();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     // === Метод для вставки связи ===
@@ -305,16 +651,32 @@ public class SeriesRepository {
                 List<Long> collectionsToAdd = new ArrayList<>(newCollectionIds);
                 collectionsToAdd.removeAll(currentCollectionIds);
 
-                // 3. Удаляем старые связи
+                Series series = seriesDao.getSeriesByIdSync(seriesId);
+
+                // 3. Удаляем старые связи (и в облаке)
                 for (Long collectionId : collectionsToRemove) {
+                    Collection col = null;
+                    for (Collection c : seriesDao.getAllCollectionsSync()) {
+                        if (c.getId() == collectionId) {
+                            col = c;
+                            break;
+                        }
+                    }
                     seriesDao.deleteSeriesCollectionCrossRef(seriesId, collectionId);
+                    if (series != null && series.getCloudId() != null && col != null && col.getCloudId() != null) {
+                        SyncEngine.getInstance(application)
+                                .deleteCrossRefRemote(series.getCloudId(), col.getCloudId());
+                    }
                 }
 
                 // 4. Добавляем новые связи
                 for (Long collectionId : collectionsToAdd) {
                     SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
+                    crossRef.markDirty();
                     seriesDao.insertCrossRef(crossRef);
                 }
+
+                triggerSync();
 
             } catch (Exception e) {
                 e.printStackTrace();
@@ -326,9 +688,11 @@ public class SeriesRepository {
                     // Добавляем новые связи
                     for (Long collectionId : newCollectionIds) {
                         SeriesCollectionCrossRef crossRef = new SeriesCollectionCrossRef(seriesId, collectionId);
+                        crossRef.markDirty();
                         seriesDao.insertCrossRef(crossRef);
                     }
                 }
+                triggerSync();
             }
         });
     }
@@ -356,7 +720,11 @@ public class SeriesRepository {
     }
 
     public void insertMediaFile(MediaFile mediaFile) {
-        executor.execute(() -> seriesDao.insertMediaFile(mediaFile));
+        executor.execute(() -> {
+            prepareMedia(mediaFile);
+            seriesDao.insertMediaFile(mediaFile);
+            triggerSync();
+        });
     }
 
     public void deleteMediaFile(long mediaId) {
@@ -379,6 +747,10 @@ public class SeriesRepository {
                     e.printStackTrace();
                 }
             }
+            if (mediaFile != null && mediaFile.getCloudId() != null) {
+                SyncEngine.getInstance(application).deleteMediaRemote(mediaFile.getCloudId());
+            }
+            triggerSync();
         });
     }
 
@@ -464,6 +836,22 @@ public class SeriesRepository {
             return -1;
         }
     }
+
+    public int insertMediaFilesSync(List<MediaFile> mediaFiles) {
+        if (mediaFiles == null || mediaFiles.isEmpty()) {
+            return 0;
+        }
+        try {
+            Future<List<Long>> future = executor.submit(() ->
+                    seriesDao.insertMediaFiles(mediaFiles)
+            );
+            List<Long> ids = future.get();
+            return ids != null ? ids.size() : 0;
+        } catch (Exception e) {
+            Log.e("SeriesRepository", "Error inserting media files sync", e);
+            return 0;
+        }
+    }
     // === Дополнительные методы для восстановления из резервной копии ===
 
     public Collection getCollectionByNameSync(String name) {
@@ -487,6 +875,52 @@ public class SeriesRepository {
         } catch (Exception e) {
             Log.e("SeriesRepository", "Error getting series by title sync", e);
             return null;
+        }
+    }
+
+    public Series getSeriesByTitleIgnoreCaseSync(String title) {
+        try {
+            Future<Series> future = executor.submit(() ->
+                    seriesDao.getSeriesByTitleIgnoreCase(title)
+            );
+            return future.get();
+        } catch (Exception e) {
+            Log.e("SeriesRepository", "Error getting series by title ignore case sync", e);
+            return null;
+        }
+    }
+
+    public Series getSeriesByIdSync(long seriesId) {
+        try {
+            Future<Series> future = executor.submit(() ->
+                    seriesDao.getSeriesByIdSync(seriesId)
+            );
+            return future.get();
+        } catch (Exception e) {
+            Log.e("SeriesRepository", "Error getting series by id sync", e);
+            return null;
+        }
+    }
+
+    public boolean hasMediaFileWithNameSync(long seriesId, String fileName) {
+        try {
+            Future<Boolean> future = executor.submit(() -> {
+                List<MediaFile> mediaFiles = seriesDao.getMediaFilesForSeriesSync(seriesId);
+                if (mediaFiles == null || fileName == null) {
+                    return false;
+                }
+                for (MediaFile mediaFile : mediaFiles) {
+                    if (fileName.equals(mediaFile.getFileName())) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+            Boolean result = future.get();
+            return result != null && result;
+        } catch (Exception e) {
+            Log.e("SeriesRepository", "Error checking media file name sync", e);
+            return false;
         }
     }
 
@@ -516,6 +950,11 @@ public class SeriesRepository {
     }
 
     public void updateSeriesSync(Series series) {
-        executor.execute(() -> seriesDao.updateSeries(series));
+        try {
+            Future<?> future = executor.submit(() -> seriesDao.updateSeries(series));
+            future.get();
+        } catch (Exception e) {
+            Log.e("SeriesRepository", "Error updating series sync", e);
+        }
     }
 }

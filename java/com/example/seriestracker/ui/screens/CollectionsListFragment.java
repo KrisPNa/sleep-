@@ -21,6 +21,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.seriestracker.R;
 import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.ui.adapters.CollectionAdapter;
+import com.example.seriestracker.ui.utils.RecyclerViewPerf;
+import com.example.seriestracker.ui.utils.ScrollToTopHelper;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 
 import java.util.ArrayList;
@@ -108,8 +110,11 @@ public class CollectionsListFragment extends Fragment {
         layoutManager.setOrientation(RecyclerView.VERTICAL);
         collectionsRecyclerView.setLayoutManager(layoutManager);
         collectionsRecyclerView.setAdapter(collectionAdapter);
+        collectionsRecyclerView.setHasFixedSize(true);
+        RecyclerViewPerf.tune(collectionsRecyclerView, 16);
 
-        // ВСЁ! Никаких addOnScrollListener больше не нужно
+        ImageButton scrollToTopButton = requireView().findViewById(R.id.scrollToTopButton);
+        ScrollToTopHelper.setup(collectionsRecyclerView, scrollToTopButton);
     }
 
     private void observeData() {
@@ -120,17 +125,15 @@ public class CollectionsListFragment extends Fragment {
                 List<Collection> sortedCollections = getSortedCollections(allCollections);
                 collectionAdapter.setCollections(sortedCollections);
 
+                collectionsCount.setText(String.valueOf(collections.size()));
                 noCollectionsText.setVisibility(View.GONE);
                 collectionsRecyclerView.setVisibility(View.VISIBLE);
             } else {
+                allCollections = new ArrayList<>();
+                collectionAdapter.setCollections(allCollections);
+                collectionsCount.setText("0");
                 noCollectionsText.setVisibility(View.VISIBLE);
                 collectionsRecyclerView.setVisibility(View.GONE);
-            }
-        });
-
-        viewModel.getAllCollections().observe(getViewLifecycleOwner(), allColls -> {
-            if (allColls != null) {
-                collectionsCount.setText(String.valueOf(allColls.size()));
             }
         });
     }

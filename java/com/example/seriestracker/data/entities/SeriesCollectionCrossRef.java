@@ -29,23 +29,34 @@ import static androidx.room.ForeignKey.CASCADE;
         }
 )
 public class SeriesCollectionCrossRef {
-    private long seriesId;      // Должно совпадать с childColumns в ForeignKey
-    private long collectionId;  // Должно совпадать с childColumns в ForeignKey
+    private long seriesId;
+    private long collectionId;
     private boolean isWatched;
+    private long updatedAt;
+    private boolean syncDirty;
 
     public SeriesCollectionCrossRef(long seriesId, long collectionId) {
         this.seriesId = seriesId;
         this.collectionId = collectionId;
         this.isWatched = false;
+        this.updatedAt = System.currentTimeMillis();
+        this.syncDirty = true;
     }
 
-    // Геттеры - ВАЖНО: имена должны совпадать с полями!
     public long getSeriesId() { return seriesId; }
     public long getCollectionId() { return collectionId; }
     public boolean getIsWatched() { return isWatched; }
+    public long getUpdatedAt() { return updatedAt; }
+    public boolean getSyncDirty() { return syncDirty; }
 
-    // Сеттеры
     public void setSeriesId(long seriesId) { this.seriesId = seriesId; }
     public void setCollectionId(long collectionId) { this.collectionId = collectionId; }
     public void setIsWatched(boolean watched) { this.isWatched = watched; }
+    public void setUpdatedAt(long updatedAt) { this.updatedAt = updatedAt; }
+    public void setSyncDirty(boolean syncDirty) { this.syncDirty = syncDirty; }
+
+    public void markDirty() {
+        this.updatedAt = System.currentTimeMillis();
+        this.syncDirty = true;
+    }
 }

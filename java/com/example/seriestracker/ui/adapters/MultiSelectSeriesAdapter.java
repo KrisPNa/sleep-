@@ -1,10 +1,11 @@
 
-        package com.example.seriestracker.ui.adapters;
+package com.example.seriestracker.ui.adapters;
 
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -14,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.example.seriestracker.R;
 import com.example.seriestracker.data.entities.Series;
+import com.example.seriestracker.utils.MediaStorageHelper;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -23,16 +25,15 @@ import java.util.Set;
 public class MultiSelectSeriesAdapter extends RecyclerView.Adapter<MultiSelectSeriesAdapter.SeriesViewHolder> {
 
     private List<Series> seriesList;
-    private Set<Long> selectedSeriesIds;
+    private final Set<Long> selectedSeriesIds = new HashSet<>();
     private OnSelectionChangeListener listener;
 
     public interface OnSelectionChangeListener {
-        void onSelectionChanged();
+        void onSelectionChanged(int selectedCount);
     }
 
-    public MultiSelectSeriesAdapter(List<Series> seriesList, Set<Long> initiallySelectedSeriesIds) {
+    public MultiSelectSeriesAdapter(List<Series> seriesList) {
         this.seriesList = seriesList != null ? seriesList : new ArrayList<>();
-        this.selectedSeriesIds = initiallySelectedSeriesIds != null ? new HashSet<>(initiallySelectedSeriesIds) : new HashSet<>();
     }
 
     public void setOnSelectionChangeListener(OnSelectionChangeListener listener) {
@@ -43,14 +44,37 @@ public class MultiSelectSeriesAdapter extends RecyclerView.Adapter<MultiSelectSe
         return new HashSet<>(selectedSeriesIds);
     }
 
-    public void setSelectedSeriesIds(Set<Long> selectedSeriesIds) {
-        this.selectedSeriesIds = selectedSeriesIds != null ? new HashSet<>(selectedSeriesIds) : new HashSet<>();
+    public int getSelectedCount() {
+        return selectedSeriesIds.size();
+    }
+
+    public void clearSelection() {
+        if (selectedSeriesIds.isEmpty()) {
+            return;
+        }
+        selectedSeriesIds.clear();
         notifyDataSetChanged();
+        notifySelectionChanged();
     }
 
     public void setSeriesList(List<Series> seriesList) {
         this.seriesList = seriesList != null ? seriesList : new ArrayList<>();
         notifyDataSetChanged();
+    }
+
+    private void setSelected(long seriesId, boolean selected) {
+        if (selected) {
+            selectedSeriesIds.add(seriesId);
+        } else {
+            selectedSeriesIds.remove(seriesId);
+        }
+        notifySelectionChanged();
+    }
+
+    private void notifySelectionChanged() {
+        if (listener != null) {
+            listener.onSelectionChanged(selectedSeriesIds.size());
+        }
     }
 
     @NonNull
@@ -63,8 +87,7 @@ public class MultiSelectSeriesAdapter extends RecyclerView.Adapter<MultiSelectSe
 
     @Override
     public void onBindViewHolder(@NonNull SeriesViewHolder holder, int position) {
-        Series series = seriesList.get(position);
-        holder.bind(series);
+        holder.bind(seriesList.get(position));
     }
 
     @Override
@@ -73,62 +96,39 @@ public class MultiSelectSeriesAdapter extends RecyclerView.Adapter<MultiSelectSe
     }
 
     class SeriesViewHolder extends RecyclerView.ViewHolder {
-        private ImageView seriesImageView;
-        private TextView seriesTitleTextView;
-        private CheckBox checkBox;
+        private final ImageView seriesImageView;
+        private final TextView seriesTitleTextView;
+        private final CheckBox checkBox;
+        private CompoundButton.OnCheckedChangeListener checkedChangeListener;
 
-        public SeriesViewHolder(@NonNull View itemView) {
+        SeriesViewHolder(@NonNull View itemView) {
             super(itemView);
             seriesImageView = itemView.findViewById(R.id.seriesImage);
             seriesTitleTextView = itemView.findViewById(R.id.seriesTitle);
             checkBox = itemView.findViewById(R.id.seriesCheckBox);
         }
 
-        public void bind(Series series) {
+        void bind(Series series) {
             seriesTitleTextView.setText(series.getTitle());
 
-            // Load image with Glide
             if (series.getImageUri() != null && !series.getImageUri().isEmpty()) {
                 Glide.with(itemView.getContext())
-                        .load(series.getImageUri())
-                        .placeholder(R.drawable.placeholder_image) // assuming you have a placeholder
-                        .error(R.drawable.placeholder_image)
+                        .load(MediaStorageHelper.resolveLoadUri(series.getImageUri()))
+                        .placeholder(R.drawable.ic_baseline_image_24)
+                        .error(R.drawable.ic_baseline_image_24)
                         .into(seriesImageView);
             } else {
-                seriesImageView.setImageResource(R.drawable.placeholder_image);
+                seriesImageView.setImageResource(R.drawable.ic_baseline_image_24);
             }
 
-            // Set checkbox state based on selection
+            checkBox.setOnCheckedChangeListener(null);
             checkBox.setChecked(selectedSeriesIds.contains(series.getId()));
 
-            // Handle checkbox click
-            checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (isChecked) {
-                    selectedSeriesIds.add(series.getId());
-                } else {
-                    selectedSeriesIds.remove(series.getId());
-                }
+            checkedChangeListener = (buttonView, isChecked) ->
+                    setSelected(series.getId(), isChecked);
+            checkBox.setOnCheckedChangeListener(checkedChangeListener);
 
-                if (listener != null) {
-                    listener.onSelectionChanged();
-                }
-            });
-
-            // Also allow clicking on the entire item to toggle selection
-            itemView.setOnClickListener(v -> {
-                boolean isSelected = selectedSeriesIds.contains(series.getId());
-                if (isSelected) {
-                    selectedSeriesIds.remove(series.getId());
-                } else {
-                    selectedSeriesIds.add(series.getId());
-                }
-
-                checkBox.setChecked(!isSelected);
-
-                if (listener != null) {
-                    listener.onSelectionChanged();
-                }
-            });
+            itemView.setOnClickListener(v -> checkBox.setChecked(!checkBox.isChecked()));
         }
     }
 }

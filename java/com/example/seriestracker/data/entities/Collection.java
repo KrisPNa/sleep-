@@ -1,6 +1,7 @@
 package com.example.seriestracker.data.entities;
 
 import androidx.room.Entity;
+import androidx.room.Index;
 import androidx.room.PrimaryKey;
 import androidx.room.TypeConverters;
 
@@ -9,7 +10,9 @@ import com.example.seriestracker.data.converters.ColorsConverter;
 import java.util.Arrays;
 import java.util.List;
 
-@Entity(tableName = "collections")
+@Entity(tableName = "collections", indices = {
+        @Index(value = {"cloudId"}, unique = true)
+})
 @TypeConverters(ColorsConverter.class)
 public class Collection {
     @PrimaryKey(autoGenerate = true)
@@ -18,67 +21,31 @@ public class Collection {
     private String name;
     private long createdAt;
     private boolean isFavorite;
-    private List<String> colors; // Изменено на список цветов
-    private int seriesCount; // ДОБАВЛЕНО: поле для количества сериалов
+    private List<String> colors;
+    private int seriesCount;
 
-    // Предопределенные цвета
+    private String cloudId;
+    private long updatedAt;
+    private boolean syncDirty;
+
     public static final String[] AVAILABLE_COLORS = {
-            // Основные цвета (старые)
-            "#2196F3", // синий (по умолчанию)
-            "#FF4081", // розовый
-            "#4CAF50", // зеленый
-            "#FF9800", // оранжевый
-            "#9C27B0", // фиолетовый
-            "#795548", // коричневый
-            "#607D8B", // сине-серый
-            "#E91E63", // малиновый
-            "#00BCD4", // голубой
-            "#8BC34A", // светло-зеленый
-            "#FF5722", // глубокий оранжевый
-            "#673AB7",  // глубокий фиолетовый
-
-            // Добавленные цвета
-            "#000000", // Черный
-            "#DC143C", // Малиновый2
-            "#8B0000", // Темно-красный
-            "#F08080", // Светлый коралловый
-            "#FF69B4", // Ярко-розовый
-            "#C71585", // Средний фиолетовый
-            "#FF4500", // Оранжево-красный
-            "#FFA500", // Оранжевый
-            "#FFFF00", // Желтый
-            "#BDB76B", // Темный хаки
-            "#E6E6FA", // Лавандовый
-            "#EE82EE", // Фиолетовый2
-            "#FF00FF", // Фуксия
-            "#9370DB", // Средний фиолетовый2
-            "#8B008B", // Темно-маджента
-            "#4B0082", // Индиго
-            "#000080", // Темно-синий
-            "#0000FF", // Синий2
-            "#00BFFF", // Голубой2
-            "#008080", // Темный бирюзовый
-            "#00CED1", // Темный бирюзовый2
-            "#00FFFF", // Бирюзовый
-            "#7FFFD4", // Аквамарин
-            "#66CDAA", // Средний аквамарин
-            "#008B8B", // Темный циан
-            "#8FBC8F", // Темный серо-зеленый
-            "#00FA9A", // Средний весенний зеленый
-            "#00FF00", // Зеленый2
-            "#228B22", // Лесной зеленый
-            "#006400", // Темно-зеленый
-            "#ADFF2F", // Желто-зеленый
-            "#2F4F4F", // Темный грифельно-серый
-            "#708090", // Сланцево-серый
-            "#696969"  // Темно-серый
+            "#2196F3", "#FF4081", "#4CAF50", "#FF9800", "#9C27B0", "#795548",
+            "#607D8B", "#E91E63", "#00BCD4", "#8BC34A", "#FF5722", "#673AB7",
+            "#000000", "#DC143C", "#8B0000", "#F08080", "#FF69B4", "#C71585",
+            "#FF4500", "#FFA500", "#FFFF00", "#BDB76B", "#E6E6FA", "#EE82EE",
+            "#FF00FF", "#9370DB", "#8B008B", "#4B0082", "#000080", "#0000FF",
+            "#00BFFF", "#008080", "#00CED1", "#00FFFF", "#7FFFD4", "#66CDAA",
+            "#008B8B", "#8FBC8F", "#00FA9A", "#00FF00", "#228B22", "#006400",
+            "#ADFF2F", "#2F4F4F", "#708090", "#696969"
     };
 
     public Collection() {
         this.createdAt = System.currentTimeMillis();
+        this.updatedAt = this.createdAt;
         this.isFavorite = false;
-        this.colors = Arrays.asList(AVAILABLE_COLORS[0]); // Синий по умолчанию
-        this.seriesCount = 0; // Инициализация
+        this.colors = Arrays.asList(AVAILABLE_COLORS[0]);
+        this.seriesCount = 0;
+        this.syncDirty = true;
     }
 
     public Collection(String name) {
@@ -97,12 +64,23 @@ public class Collection {
     public long getCreatedAt() { return createdAt; }
     public boolean isFavorite() { return isFavorite; }
     public List<String> getColors() { return colors; }
-    public int getSeriesCount() { return seriesCount; } // ДОБАВЛЕНО: геттер
+    public int getSeriesCount() { return seriesCount; }
+    public String getCloudId() { return cloudId; }
+    public long getUpdatedAt() { return updatedAt; }
+    public boolean getSyncDirty() { return syncDirty; }
 
     public void setId(long id) { this.id = id; }
     public void setName(String name) { this.name = name; }
     public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
     public void setFavorite(boolean favorite) { isFavorite = favorite; }
     public void setColors(List<String> colors) { this.colors = colors; }
-    public void setSeriesCount(int seriesCount) { this.seriesCount = seriesCount; } // ДОБАВЛЕНО: сеттер
+    public void setSeriesCount(int seriesCount) { this.seriesCount = seriesCount; }
+    public void setCloudId(String cloudId) { this.cloudId = cloudId; }
+    public void setUpdatedAt(long updatedAt) { this.updatedAt = updatedAt; }
+    public void setSyncDirty(boolean syncDirty) { this.syncDirty = syncDirty; }
+
+    public void markDirty() {
+        this.updatedAt = System.currentTimeMillis();
+        this.syncDirty = true;
+    }
 }

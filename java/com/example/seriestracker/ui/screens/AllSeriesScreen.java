@@ -14,6 +14,7 @@ import android.widget.PopupMenu;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -22,6 +23,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.seriestracker.R;
 import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.ui.adapters.SeriesAdapter;
+import com.example.seriestracker.ui.utils.RecyclerViewPerf;
+import com.example.seriestracker.ui.utils.ScrollToTopHelper;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 
 
@@ -40,7 +43,7 @@ public class AllSeriesScreen extends Fragment {
     private TextView seriesCountBadge;
     private List<Series> allSeries = new ArrayList<>();
     private int currentSortOrder = 0;
-    private String currentStatusFilter = null; // Для хранения выбранного статуса для сортировки
+    private String statusFilter = null;
 
     public AllSeriesScreen() {
         // Required empty public constructor
@@ -82,17 +85,34 @@ public class AllSeriesScreen extends Fragment {
         // Загрузка всех сериалов
         viewModel.getAllSeries().observe(getViewLifecycleOwner(), seriesList -> {
             if (seriesList != null) {
-                allSeries = seriesList;
-                List<Series> sortedSeries = getSortedSeries(allSeries);
-                // Обновляем адаптер
-                seriesAdapter.setSeriesList(sortedSeries);
-                // ОБНОВЛЯЕМ СЧЕТЧИК
-                seriesCountBadge.setText(String.valueOf(seriesList.size()));
+                allSeries = new ArrayList<>(seriesList);
+                applySeriesListToUi();
             } else {
-                // Если список пустой, показываем 0
+                allSeries = new ArrayList<>();
+                seriesAdapter.setSeriesList(allSeries);
                 seriesCountBadge.setText("0");
             }
         });
+    }
+
+    private void applySeriesListToUi() {
+        List<Series> displayedSeries = prepareDisplayedSeries(allSeries);
+        seriesAdapter.setSeriesList(displayedSeries);
+        seriesCountBadge.setText(String.valueOf(displayedSeries.size()));
+    }
+
+    private List<Series> prepareDisplayedSeries(List<Series> source) {
+        List<Series> series = new ArrayList<>(source);
+        if (statusFilter != null) {
+            List<Series> filtered = new ArrayList<>();
+            for (Series item : series) {
+                if (statusFilter.equals(item.getStatus())) {
+                    filtered.add(item);
+                }
+            }
+            series = filtered;
+        }
+        return getSortedSeries(series);
     }
 
     private void setupRecyclerView() {
@@ -121,8 +141,33 @@ public class AllSeriesScreen extends Fragment {
 
         seriesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         seriesRecyclerView.setAdapter(seriesAdapter);
+        seriesRecyclerView.setHasFixedSize(true);
+        RecyclerViewPerf.tune(seriesRecyclerView, 20);
 
-        // ВСЁ! Никаких addOnScrollListener больше не нужно
+        seriesAdapter.setInCollectionContext(false);
+        seriesAdapter.setOnSeriesMenuListener(new SeriesAdapter.OnSeriesMenuListener() {
+            @Override
+            public void onChangeStatus(Series series, String newStatus) {
+                viewModel.updateSeriesStatus(series.getId(), newStatus);
+                Toast.makeText(getContext(), "Статус обновлён", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onDeleteAction(Series series) {
+                new AlertDialog.Builder(requireContext())
+                        .setTitle("Удалить сериал?")
+                        .setMessage("«" + series.getTitle() + "» будет удалён без возможности восстановления.")
+                        .setPositiveButton("Удалить", (d, w) -> {
+                            viewModel.deleteSeries(series.getId());
+                            Toast.makeText(getContext(), "Сериал удалён", Toast.LENGTH_SHORT).show();
+                        })
+                        .setNegativeButton("Отмена", null)
+                        .show();
+            }
+        });
+
+        ImageButton scrollToTopButton = requireView().findViewById(R.id.scrollToTopButton);
+        ScrollToTopHelper.setup(seriesRecyclerView, scrollToTopButton);
     }
 
     private void showSortMenu(View view) {
@@ -166,35 +211,35 @@ public class AllSeriesScreen extends Fragment {
                 if (itemId == R.id.sort_by_name_asc) {
                     currentSortOrder = 0;
                     item.setChecked(true);
-                    currentStatusFilter = null;
+                    statusFilter = null;
                 } else if (itemId == R.id.sort_by_name_desc) {
                     currentSortOrder = 1;
                     item.setChecked(true);
-                    currentStatusFilter = null;
+                    statusFilter = null;
                 } else if (itemId == R.id.sort_by_episodes_asc) {
                     currentSortOrder = 2;
                     item.setChecked(true);
-                    currentStatusFilter = null;
+                    statusFilter = null;
                 } else if (itemId == R.id.sort_by_episodes_desc) {
                     currentSortOrder = 3;
                     item.setChecked(true);
-                    currentStatusFilter = null;
+                    statusFilter = null;
                 } else if (itemId == R.id.sort_by_status_watching) {
                     currentSortOrder = 4;
                     item.setChecked(true);
-                    currentStatusFilter = "watching";
+                    statusFilter = "watching";
                 } else if (itemId == R.id.sort_by_status_dropped) {
                     currentSortOrder = 5;
                     item.setChecked(true);
-                    currentStatusFilter = "dropped";
+                    statusFilter = "dropped";
                 } else if (itemId == R.id.sort_by_status_planned) {
                     currentSortOrder = 6;
                     item.setChecked(true);
-                    currentStatusFilter = "planned";
+                    statusFilter = "planned";
                 } else if (itemId == R.id.sort_by_status_completed) {
                     currentSortOrder = 7;
                     item.setChecked(true);
-                    currentStatusFilter = "completed";
+                    statusFilter = "completed";
                 } else {
                     return false;
                 }
@@ -265,54 +310,17 @@ public class AllSeriesScreen extends Fragment {
                     }
                 });
                 break;
-            case 4: // по статусу "Смотрю"
-            case 5: // по статусу "Брошено"
-            case 6: // по статусу "Планирую"
-            case 7: // по статусу "Посмотрел"
+            case 4: // только «Смотрю»
+            case 5: // только «Брошено»
+            case 6: // только «Запланировано»
+            case 7: // только «Завершено»
                 Collections.sort(sorted, new Comparator<Series>() {
                     @Override
                     public int compare(Series s1, Series s2) {
-                        // Сначала проверяем избранное
                         if (s1.getIsFavorite() != s2.getIsFavorite()) {
                             return s2.getIsFavorite() ? 1 : -1;
                         }
-                        // Если выбран конкретный статус для сортировки
-                        if (currentStatusFilter != null) {
-                            boolean s1IsTargetStatus = s1.getStatus().equals(currentStatusFilter);
-                            boolean s2IsTargetStatus = s2.getStatus().equals(currentStatusFilter);
-
-                            // Если только один из сериалов имеет целевой статус, помещаем его первым
-                            if (s1IsTargetStatus && !s2IsTargetStatus) {
-                                return -1;
-                            } else if (!s1IsTargetStatus && s2IsTargetStatus) {
-                                return 1;
-                            }
-                            // Если оба имеют или не имеют целевой статус, сортируем по названию
-                            return s1.getTitle().compareToIgnoreCase(s2.getTitle());
-                        } else {
-                            // Стандартная сортировка по статусу
-                            int statusComparison = getStatusPriority(s1.getStatus()).compareTo(getStatusPriority(s2.getStatus()));
-                            if (statusComparison != 0) {
-                                return statusComparison;
-                            }
-                            // Если статус одинаковый, сортируем по названию
-                            return s1.getTitle().compareToIgnoreCase(s2.getTitle());
-                        }
-                    }
-
-                    private Integer getStatusPriority(String status) {
-                        switch (status) {
-                            case "watching":
-                                return 1;
-                            case "planned":
-                                return 2;
-                            case "dropped":
-                                return 3;
-                            case "completed":
-                                return 4;
-                            default:
-                                return 5; // для любых других значений
-                        }
+                        return s1.getTitle().compareToIgnoreCase(s2.getTitle());
                     }
                 });
                 break;
@@ -322,8 +330,7 @@ public class AllSeriesScreen extends Fragment {
     }
 
     private void updateSeriesList() {
-        List<Series> sortedSeries = getSortedSeries(allSeries);
-        seriesAdapter.setSeriesList(sortedSeries);
+        applySeriesListToUi();
     }
     private void openEditSeriesScreen(Series series) {
         EditSeriesScreen editScreen = EditSeriesScreen.newInstance(series.getId());

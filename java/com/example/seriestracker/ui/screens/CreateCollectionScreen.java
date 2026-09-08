@@ -153,6 +153,26 @@ public class CreateCollectionScreen extends Fragment {
         colorPreviewCard.setStrokeColor(Color.parseColor(selectedColor));
     }
 
+    private void openCollectionDetailScreen(long collectionId) {
+        androidx.fragment.app.FragmentManager fragmentManager =
+                requireActivity().getSupportFragmentManager();
+        fragmentManager.popBackStack(null,
+                androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE);
+
+        fragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, new MainScreen())
+                .commitNow();
+
+        CollectionDetailScreen detailScreen = new CollectionDetailScreen();
+        Bundle bundle = new Bundle();
+        bundle.putLong("collectionId", collectionId);
+        detailScreen.setArguments(bundle);
+        fragmentManager.beginTransaction()
+                .replace(R.id.fragment_container, detailScreen)
+                .addToBackStack(null)
+                .commit();
+    }
+
     private void createCollection() {
         String collectionName = collectionNameEditText.getText().toString().trim();
 
@@ -179,11 +199,13 @@ public class CreateCollectionScreen extends Fragment {
                 collectionNameEditText.requestFocus();
             } else {
                 // Создаем коллекцию с выбранным цветом - ИСПРАВЛЕНО: используем createCollectionWithColor
-                viewModel.createCollectionWithColor(collectionName, selectedColor);
-                Toast.makeText(getContext(), "Коллекция создана!", Toast.LENGTH_SHORT).show();
-
-                // Возвращаемся назад
-                requireActivity().getSupportFragmentManager().popBackStack();
+                viewModel.createCollectionWithColor(collectionName, selectedColor, collectionId -> {
+                    if (!isAdded()) {
+                        return;
+                    }
+                    Toast.makeText(getContext(), "Коллекция создана!", Toast.LENGTH_SHORT).show();
+                    openCollectionDetailScreen(collectionId);
+                });
             }
         });
     }

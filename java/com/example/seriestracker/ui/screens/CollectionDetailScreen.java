@@ -2,33 +2,47 @@ package com.example.seriestracker.ui.screens;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
 import com.example.seriestracker.R;
 import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.data.entities.Series;
+import com.example.seriestracker.data.prefs.ThemePreferences;
 import com.example.seriestracker.ui.adapters.MultiSelectSeriesAdapter;
 import com.example.seriestracker.ui.adapters.SeriesAdapter;
+import com.example.seriestracker.ui.utils.RecyclerViewPerf;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
+import com.example.seriestracker.utils.CollectionCardColors;
+import com.example.seriestracker.utils.MediaStorageHelper;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class CollectionDetailScreen extends Fragment {
@@ -44,6 +58,9 @@ public class CollectionDetailScreen extends Fragment {
     private View colorIndicator;
     private ImageButton favoriteButton;
     private ImageButton menuButton;
+
+    private int savedFirstVisiblePosition = RecyclerView.NO_POSITION;
+    private int savedFirstVisibleTop = 0;
 
     public CollectionDetailScreen() {
         // Required empty public constructor
@@ -132,13 +149,73 @@ public class CollectionDetailScreen extends Fragment {
 
         seriesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         seriesRecyclerView.setAdapter(seriesAdapter);
+        seriesRecyclerView.setHasFixedSize(true);
+        RecyclerViewPerf.tune(seriesRecyclerView, 20);
+
+        seriesAdapter.setOnSeriesLongClickListener(null);
+        seriesAdapter.setInCollectionContext(true);
+        seriesAdapter.setOnSeriesMenuListener(new SeriesAdapter.OnSeriesMenuListener() {
+            @Override
+            public void onChangeStatus(Series series, String newStatus) {
+                viewModel.updateSeriesStatus(series.getId(), newStatus);
+                Toast.makeText(getContext(), "Статус обновлён", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onDeleteAction(Series series) {
+                showRemoveFromCollectionDialog(series);
+            }
+        });
+    }
+
+    private void showRemoveFromCollectionDialog(Series series) {
+        View contentView = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_remove_from_collection, null, false);
+
+        TextView titleText = contentView.findViewById(R.id.removeSeriesTitleText);
+        ImageView coverImage = contentView.findViewById(R.id.removeSeriesCoverImage);
+        titleText.setText(series.getTitle());
+
+        if (series.getImageUri() != null && !series.getImageUri().isEmpty()) {
+            Glide.with(this)
+                    .load(MediaStorageHelper.resolveLoadUri(series.getImageUri()))
+                    .placeholder(R.drawable.ic_baseline_image_24)
+                    .error(R.drawable.ic_baseline_image_24)
+                    .centerCrop()
+                    .into(coverImage);
+        } else {
+            coverImage.setImageResource(R.drawable.ic_baseline_image_24);
+        }
+
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
+                .setView(contentView)
+                .setCancelable(true)
+                .create();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            dialog.getWindow().setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+
+        contentView.findViewById(R.id.cancelRemoveButton).setOnClickListener(v -> dialog.dismiss());
+        contentView.findViewById(R.id.removeFromCollectionButton).setOnClickListener(v -> {
+            viewModel.removeSeriesFromCollection(series.getId(), collectionId);
+            Toast.makeText(getContext(), R.string.removed_from_collection, Toast.LENGTH_SHORT).show();
+            dialog.dismiss();
+        });
+
+        dialog.show();
     }
 
     private void loadData() {
         // Получаем сериалы в коллекции
         viewModel.getSeriesInCollection(collectionId).observe(getViewLifecycleOwner(), seriesList -> {
             if (seriesList != null) {
+                saveRecyclerScrollState();
                 seriesAdapter.setSeriesList(seriesList);
+                restoreRecyclerScrollState();
 
                 // Только обновляем количество в бейдже
                 int count = seriesList.size();
@@ -157,28 +234,11 @@ public class CollectionDetailScreen extends Fragment {
                         List<String> colors = collection.getColors();
                         if (colors != null && !colors.isEmpty()) {
                             try {
-                                // Берем первый цвет из списка для индикатора
-                                String firstColor = colors.get(0);
-
-                                // Устанавливаем цвет индикатора
-                                colorIndicator.setBackgroundColor(Color.parseColor(firstColor));
-                                colorIndicator.setVisibility(View.VISIBLE);
-
-                                // Меняем цвет заголовка на цвет коллекции
-                                collectionNameTextView.setTextColor(Color.parseColor(firstColor));
-
-                                // Если есть несколько цветов, можно создать градиент (опционально)
-                                if (colors.size() > 1) {
-                                    // Здесь можно создать и установить градиент
-                                    // Например, с помощью GradientDrawable
-                                }
-
+                                applyCollectionColors(Color.parseColor(colors.get(0)));
                             } catch (Exception e) {
-                                // Если цвет некорректный, используем цвет по умолчанию
                                 setDefaultColors();
                             }
                         } else {
-                            // Если цвет не установлен, используем цвет по умолчанию
                             setDefaultColors();
                         }
 
@@ -191,10 +251,25 @@ public class CollectionDetailScreen extends Fragment {
         });
     }
 
-    private void setDefaultColors() {
-        colorIndicator.setBackgroundColor(getResources().getColor(R.color.primary_blue));
+    private void applyCollectionColors(int mainColor) {
+        boolean dark = ThemePreferences.isDark(requireContext());
+        int[] gradient = dark
+                ? CollectionCardColors.darkGradient(mainColor)
+                : CollectionCardColors.lightGradient(mainColor);
+        int accent = CollectionCardColors.brightestFromGradient(gradient);
+
+        ViewGroup.LayoutParams lp = colorIndicator.getLayoutParams();
+        lp.height = Math.round(TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, 6f, getResources().getDisplayMetrics()));
+        colorIndicator.setLayoutParams(lp);
+        colorIndicator.setBackgroundColor(accent);
         colorIndicator.setVisibility(View.VISIBLE);
-        collectionNameTextView.setTextColor(getResources().getColor(R.color.text_dark));
+
+        collectionNameTextView.setTextColor(accent);
+    }
+
+    private void setDefaultColors() {
+        applyCollectionColors(getResources().getColor(R.color.primary_blue));
     }
 
     private void toggleFavorite() {
@@ -303,78 +378,194 @@ public class CollectionDetailScreen extends Fragment {
         dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
 
         RecyclerView selectSeriesRecyclerView = dialog.findViewById(R.id.selectSeriesRecyclerView);
+        EditText searchSeriesEditText = dialog.findViewById(R.id.searchSeriesEditText);
         Button cancelButton = dialog.findViewById(R.id.cancelButton);
         Button addSelectedButton = dialog.findViewById(R.id.addSelectedButton);
 
-        // Get all series that are not already in this collection
-        viewModel.getAllSeries().observe(this, allSeries -> {
-            if (allSeries != null) {
-                // Get series that are already in this collection
-                viewModel.getSeriesInCollection(collectionId).observe(this, seriesInCollection -> {
-                    if (seriesInCollection != null) {
-                        // Find series that are NOT in this collection
-                        Set<Long> seriesInCollectionIds = new HashSet<>();
-                        for (Series series : seriesInCollection) {
-                            seriesInCollectionIds.add(series.getId());
+        List<Series> availableSeries = new ArrayList<>();
+        List<Series> cachedAllSeries = new ArrayList<>();
+        List<Series> cachedSeriesInCollection = new ArrayList<>();
+        MultiSelectSeriesAdapter[] adapterHolder = new MultiSelectSeriesAdapter[1];
+
+        Runnable rebuildAvailableSeries = () -> {
+            Set<Long> seriesInCollectionIds = new HashSet<>();
+            for (Series series : cachedSeriesInCollection) {
+                seriesInCollectionIds.add(series.getId());
+            }
+
+            availableSeries.clear();
+            for (Series series : cachedAllSeries) {
+                if (!seriesInCollectionIds.contains(series.getId())) {
+                    availableSeries.add(series);
+                }
+            }
+
+            List<Series> filtered = filterSeriesByTitle(
+                    availableSeries, searchSeriesEditText.getText().toString());
+
+            if (adapterHolder[0] == null) {
+                MultiSelectSeriesAdapter adapter = new MultiSelectSeriesAdapter(filtered);
+                adapterHolder[0] = adapter;
+                selectSeriesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+                selectSeriesRecyclerView.setAdapter(adapter);
+
+                adapter.setOnSelectionChangeListener(selectedCount ->
+                        updateAddSeriesButton(addSelectedButton, selectedCount));
+
+                searchSeriesEditText.addTextChangedListener(new TextWatcher() {
+                    @Override
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                    }
+
+                    @Override
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {
+                        if (adapterHolder[0] != null) {
+                            adapterHolder[0].setSeriesList(
+                                    filterSeriesByTitle(availableSeries, s.toString()));
                         }
+                    }
 
-                        List<Series> availableSeries = new ArrayList<>();
-                        for (Series series : allSeries) {
-                            if (!seriesInCollectionIds.contains(series.getId())) {
-                                availableSeries.add(series);
-                            }
-                        }
-
-                        // Initialize adapter with available series
-                        Set<Long> initiallySelected = new HashSet<>(); // Initially none selected
-                        MultiSelectSeriesAdapter adapter = new MultiSelectSeriesAdapter(availableSeries, initiallySelected);
-                        selectSeriesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-                        selectSeriesRecyclerView.setAdapter(adapter);
-
-                        // Handle selection changes
-                        adapter.setOnSelectionChangeListener(() -> {
-                            // Update button state based on selection
-                            Set<Long> selectedIds = adapter.getSelectedSeriesIds();
-                            addSelectedButton.setEnabled(!selectedIds.isEmpty());
-                        });
-
-                        // Set up buttons
-                        cancelButton.setOnClickListener(v -> dialog.dismiss());
-
-                        addSelectedButton.setOnClickListener(v -> {
-                            Set<Long> selectedIds = adapter.getSelectedSeriesIds();
-                            if (!selectedIds.isEmpty()) {
-                                List<Long> selectedList = new ArrayList<>(selectedIds);
-                                viewModel.addMultipleSeriesToCollection(selectedList, collectionId);
-
-                                Toast.makeText(getContext(),
-                                        "Добавлено " + selectedList.size() + " сериалов",
-                                        Toast.LENGTH_SHORT).show();
-
-                                dialog.dismiss();
-
-                                // Refresh the series list in the current collection
-                                loadData();
-                            }
-                        });
-
-                        addSelectedButton.setEnabled(false); // Initially disabled
+                    @Override
+                    public void afterTextChanged(Editable s) {
                     }
                 });
+
+                cancelButton.setOnClickListener(v -> dialog.dismiss());
+
+                addSelectedButton.setOnClickListener(v -> {
+                    Set<Long> selectedIds = adapter.getSelectedSeriesIds();
+                    if (!selectedIds.isEmpty()) {
+                        List<Long> selectedList = new ArrayList<>(selectedIds);
+                        viewModel.addMultipleSeriesToCollection(selectedList, collectionId);
+                        Toast.makeText(getContext(),
+                                getString(R.string.added_series_with_count,
+                                        selectedList.size(),
+                                        getSeriesCountWord(selectedList.size())),
+                                Toast.LENGTH_SHORT).show();
+                        dialog.dismiss();
+                    }
+                });
+
+                updateAddSeriesButton(addSelectedButton, 0);
+            } else {
+                adapterHolder[0].setSeriesList(filtered);
             }
+        };
+
+        Observer<List<Series>> allSeriesObserver = allSeries -> {
+            cachedAllSeries.clear();
+            if (allSeries != null) {
+                cachedAllSeries.addAll(allSeries);
+            }
+            rebuildAvailableSeries.run();
+        };
+
+        Observer<List<Series>> inCollectionObserver = seriesInCollection -> {
+            cachedSeriesInCollection.clear();
+            if (seriesInCollection != null) {
+                cachedSeriesInCollection.addAll(seriesInCollection);
+            }
+            rebuildAvailableSeries.run();
+        };
+
+        viewModel.getAllSeries().observe(getViewLifecycleOwner(), allSeriesObserver);
+        viewModel.getSeriesInCollection(collectionId).observe(getViewLifecycleOwner(), inCollectionObserver);
+
+        dialog.setOnDismissListener(d -> {
+            viewModel.getAllSeries().removeObserver(allSeriesObserver);
+            viewModel.getSeriesInCollection(collectionId).removeObserver(inCollectionObserver);
         });
 
         dialog.show();
     }
 
+    private void updateAddSeriesButton(Button button, int selectedCount) {
+        if (selectedCount <= 0) {
+            button.setText(R.string.add_series_none);
+            button.setEnabled(false);
+            return;
+        }
+        button.setEnabled(true);
+        button.setText(getString(
+                R.string.add_series_with_count,
+                selectedCount,
+                getSeriesCountWord(selectedCount)));
+    }
+
+    private String getSeriesCountWord(int count) {
+        int mod10 = count % 10;
+        int mod100 = count % 100;
+        if (mod10 == 1 && mod100 != 11) {
+            return getString(R.string.series_word_one);
+        }
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+            return getString(R.string.series_word_few);
+        }
+        return getString(R.string.series_word_many);
+    }
+
+    private List<Series> filterSeriesByTitle(List<Series> source, String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return new ArrayList<>(source);
+        }
+
+        String lowerQuery = query.trim().toLowerCase(Locale.ROOT);
+        List<Series> filtered = new ArrayList<>();
+        for (Series series : source) {
+            String title = series.getTitle();
+            if (title != null && title.toLowerCase(Locale.ROOT).contains(lowerQuery)) {
+                filtered.add(series);
+            }
+        }
+        return filtered;
+    }
+
     private void openEditSeriesScreen(Series series) {
+        saveRecyclerScrollState();
         EditSeriesScreen editScreen = EditSeriesScreen.newInstance(series.getId());
         requireActivity().getSupportFragmentManager().beginTransaction()
-                .replace(R.id.fragment_container, editScreen)
+                .hide(this)
+                .add(R.id.fragment_container, editScreen)
                 .addToBackStack(null)
                 .commit();
+    }
 
+    private void saveRecyclerScrollState() {
+        if (seriesRecyclerView == null) {
+            return;
+        }
+        RecyclerView.LayoutManager layoutManager = seriesRecyclerView.getLayoutManager();
+        if (!(layoutManager instanceof LinearLayoutManager)) {
+            return;
+        }
+        LinearLayoutManager linearLayoutManager = (LinearLayoutManager) layoutManager;
+        savedFirstVisiblePosition = linearLayoutManager.findFirstVisibleItemPosition();
+        if (savedFirstVisiblePosition == RecyclerView.NO_POSITION) {
+            savedFirstVisibleTop = 0;
+            return;
+        }
+        View firstVisibleView = linearLayoutManager.findViewByPosition(savedFirstVisiblePosition);
+        savedFirstVisibleTop = firstVisibleView != null ? firstVisibleView.getTop() : 0;
+    }
 
+    private void restoreRecyclerScrollState() {
+        if (seriesRecyclerView == null || savedFirstVisiblePosition == RecyclerView.NO_POSITION) {
+            return;
+        }
+        seriesRecyclerView.post(() -> {
+            RecyclerView.LayoutManager layoutManager = seriesRecyclerView.getLayoutManager();
+            if (!(layoutManager instanceof LinearLayoutManager)) {
+                return;
+            }
+            LinearLayoutManager linearLayoutManager = (LinearLayoutManager) layoutManager;
+            linearLayoutManager.scrollToPositionWithOffset(savedFirstVisiblePosition, savedFirstVisibleTop);
+        });
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        restoreRecyclerScrollState();
     }
 
     private void showRandomSeriesFromCollection() {

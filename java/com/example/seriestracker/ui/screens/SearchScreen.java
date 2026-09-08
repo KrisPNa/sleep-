@@ -28,6 +28,7 @@ import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.ui.adapters.CollectionAdapter;
 import com.example.seriestracker.ui.adapters.SeriesAdapter;
+import com.example.seriestracker.ui.utils.RecyclerViewPerf;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
 
 import java.util.ArrayList;
@@ -159,6 +160,24 @@ public class SearchScreen extends Fragment {
 
         seriesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         seriesRecyclerView.setAdapter(seriesAdapter);
+        RecyclerViewPerf.tune(seriesRecyclerView, 16);
+        seriesAdapter.setInCollectionContext(false);
+        seriesAdapter.setOnSeriesMenuListener(new SeriesAdapter.OnSeriesMenuListener() {
+            @Override
+            public void onChangeStatus(Series series, String newStatus) {
+                viewModel.updateSeriesStatus(series.getId(), newStatus);
+            }
+
+            @Override
+            public void onDeleteAction(Series series) {
+                new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                        .setTitle("Удалить сериал?")
+                        .setMessage("«" + series.getTitle() + "» будет удалён.")
+                        .setPositiveButton("Удалить", (d, w) -> viewModel.deleteSeries(series.getId()))
+                        .setNegativeButton("Отмена", null)
+                        .show();
+            }
+        });
 
         // Настройка адаптера для коллекций - ИСПРАВЛЕНО: добавлен onFavoriteClick
         collectionAdapter = new CollectionAdapter(new CollectionAdapter.OnCollectionClickListener() {
@@ -181,6 +200,7 @@ public class SearchScreen extends Fragment {
 
         collectionsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         collectionsRecyclerView.setAdapter(collectionAdapter);
+        RecyclerViewPerf.tune(collectionsRecyclerView, 12);
     }
 
     private void setupEventListeners() {
@@ -222,23 +242,9 @@ public class SearchScreen extends Fragment {
             searchEditText.requestFocus();
         });
 
-        // Кнопка меню фильтрации - показываем только в обычном режиме
-        if (searchType == SEARCH_TYPE_ALL) {
-            filterMenuButton.setOnClickListener(v -> {
-                showFilterMenu(v);
-            });
-        } else {
-            // В контекстном режиме прячем кнопку фильтра
-            filterMenuButton.setVisibility(View.GONE);
-            // Также устанавливаем соответствующий текст для фильтра и фиксируем значение currentFilter
-            if (searchType == SEARCH_TYPE_COLLECTIONS_ONLY) {
-                currentFilter = 1; // Только коллекции
-                currentFilterText.setText("Фильтр: Только коллекции");
-            } else if (searchType == SEARCH_TYPE_SERIES_ONLY) {
-                currentFilter = 2; // Только сериалы
-                currentFilterText.setText("Фильтр: Только сериалы");
-            }
-        }
+        // Кнопка меню фильтрации больше не нужна — поиск всегда по коллекциям и сериалам
+        filterMenuButton.setVisibility(View.GONE);
+        currentFilterText.setVisibility(View.GONE);
 
         // Фокусируемся на поле поиска при открытии и устанавливаем начальное значение
         searchEditText.setText(initialQuery);
@@ -302,8 +308,8 @@ public class SearchScreen extends Fragment {
             }
         });
 
-        // Загружаем все коллекции
-        viewModel.getAllCollections().observe(getViewLifecycleOwner(), collections -> {
+        // Загружаем все коллекции с количеством сериалов
+        viewModel.getAllCollectionsWithSeriesCount().observe(getViewLifecycleOwner(), collections -> {
             if (collections != null) {
                 allCollections = collections;
                 performSearch();
@@ -322,47 +328,26 @@ public class SearchScreen extends Fragment {
             List<Series> filteredSeries = new ArrayList<>();
             List<Collection> filteredCollections = new ArrayList<>();
 
-            // Если запрос пустой, показываем все согласно типу поиска и фильтру
+            // Ищем одновременно по коллекциям и сериалам
             if (query.isEmpty()) {
-                if ((searchType == SEARCH_TYPE_ALL || searchType == SEARCH_TYPE_SERIES_ONLY) &&
-                        (currentFilter == 0 || currentFilter == 2)) {
-                    // Показываем все сериалы
-                    filteredSeries.addAll(allSeries);
-                }
-                if ((searchType == SEARCH_TYPE_ALL || searchType == SEARCH_TYPE_COLLECTIONS_ONLY) &&
-                        (currentFilter == 0 || currentFilter == 1)) {
-                    // Показываем все коллекции
-                    filteredCollections.addAll(allCollections);
-                }
+                filteredSeries.addAll(allSeries);
+                filteredCollections.addAll(allCollections);
             } else {
-                // Выполняем поиск по запросу
-                if ((searchType == SEARCH_TYPE_ALL || searchType == SEARCH_TYPE_SERIES_ONLY) &&
-                        (currentFilter == 0 || currentFilter == 2)) {
-                    // Ищем в сериалах
-                    for (Series series : allSeries) {
-                        if (!lastProcessedQuery.equals(currentQuery)) {
-                            // Запрос изменился во время поиска, прерываем
-                            return;
-                        }
-
-                        if (matchesSeries(series, query)) {
-                            filteredSeries.add(series);
-                        }
+                for (Series series : allSeries) {
+                    if (!lastProcessedQuery.equals(currentQuery)) {
+                        return;
+                    }
+                    if (matchesSeries(series, query)) {
+                        filteredSeries.add(series);
                     }
                 }
 
-                if ((searchType == SEARCH_TYPE_ALL || searchType == SEARCH_TYPE_COLLECTIONS_ONLY) &&
-                        (currentFilter == 0 || currentFilter == 1)) {
-                    // Ищем в коллекциях
-                    for (Collection collection : allCollections) {
-                        if (!lastProcessedQuery.equals(currentQuery)) {
-                            // Запрос изменился во время поиска, прерываем
-                            return;
-                        }
-
-                        if (matchesCollection(collection, query)) {
-                            filteredCollections.add(collection);
-                        }
+                for (Collection collection : allCollections) {
+                    if (!lastProcessedQuery.equals(currentQuery)) {
+                        return;
+                    }
+                    if (matchesCollection(collection, query)) {
+                        filteredCollections.add(collection);
                     }
                 }
             }
@@ -389,6 +374,12 @@ public class SearchScreen extends Fragment {
             return true;
         }
         if (series.getNotes() != null && series.getNotes().toLowerCase().contains(query)) {
+            return true;
+        }
+        if (series.getWatchUrl() != null && series.getWatchUrl().toLowerCase().contains(query)) {
+            return true;
+        }
+        if (series.getWatchAt() != null && series.getWatchAt().toLowerCase().contains(query)) {
             return true;
         }
         if (series.getGenre() != null && series.getGenre().toLowerCase().contains(query)) {

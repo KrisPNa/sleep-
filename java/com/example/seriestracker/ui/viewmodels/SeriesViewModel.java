@@ -4,6 +4,7 @@
 import android.app.Application;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
 
 import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.data.entities.CollectionWithSeries;
@@ -39,10 +40,14 @@ public class SeriesViewModel extends AndroidViewModel {
 
     // === Создание коллекции с одним цветом ===
     public void createCollectionWithColor(String name, String color) {
-        // Создаем список с одним цветом
+        createCollectionWithColor(name, color, null);
+    }
+
+    public void createCollectionWithColor(String name, String color,
+                                          SeriesRepository.InsertCollectionCallback callback) {
         List<String> colors = Arrays.asList(color);
         Collection collection = new Collection(name, colors);
-        repository.insertCollection(collection);
+        repository.insertCollection(collection, callback);
     }
 
     // === Создание коллекции с несколькими цветами ===
@@ -86,10 +91,28 @@ public class SeriesViewModel extends AndroidViewModel {
     }
 
     public void addSeries(String title, String imageUri, List<Long> collectionIds, String notes) {
+        addSeries(title, imageUri, collectionIds, notes, null, null, null);
+    }
+
+    public void addSeries(String title, String imageUri, List<Long> collectionIds, String notes,
+                          SeriesRepository.InsertSeriesCallback callback) {
+        addSeries(title, imageUri, collectionIds, notes, null, null, callback);
+    }
+
+    public void addSeries(String title, String imageUri, List<Long> collectionIds, String notes,
+                          String watchUrl, SeriesRepository.InsertSeriesCallback callback) {
+        addSeries(title, imageUri, collectionIds, notes, null, watchUrl, callback);
+    }
+
+    public void addSeries(String title, String imageUri, List<Long> collectionIds, String notes,
+                          String watchAt, String watchUrl,
+                          SeriesRepository.InsertSeriesCallback callback) {
         Series series = new Series();
         series.setTitle(title);
         series.setImageUri(imageUri);
         series.setNotes(notes);
+        series.setWatchAt(watchAt);
+        series.setWatchUrl(watchUrl);
         series.setIsWatched(false);
         series.setStatus("planned");
         series.setIsFavorite(false);
@@ -97,7 +120,7 @@ public class SeriesViewModel extends AndroidViewModel {
         series.setEpisodes(0);
         series.setGenre("");
 
-        repository.insertSeriesWithCollections(series, collectionIds);
+        repository.insertSeriesWithCollections(series, collectionIds, callback);
     }
 
 
@@ -182,6 +205,34 @@ public class SeriesViewModel extends AndroidViewModel {
 
     public LiveData<Boolean> doesSeriesExist(String seriesTitle) {
         return repository.doesSeriesExist(seriesTitle);
+    }
+
+    public LiveData<Boolean> doesSeriesExistExcludeId(String seriesTitle, long seriesId) {
+        return repository.doesSeriesExistExcludeId(seriesTitle, seriesId);
+    }
+
+    public LiveData<SeriesRepository.AppendNotesOutcome> appendNotesToExistingSeries(String title, String notes) {
+        MutableLiveData<SeriesRepository.AppendNotesOutcome> result = new MutableLiveData<>();
+        repository.appendNotesToSeriesByTitle(title, notes, result::setValue);
+        return result;
+    }
+
+    public LiveData<SeriesRepository.SetWatchUrlOutcome> setWatchUrlOnExistingSeries(String title, String watchUrl) {
+        MutableLiveData<SeriesRepository.SetWatchUrlOutcome> result = new MutableLiveData<>();
+        repository.setWatchUrlOnSeriesByTitle(title, watchUrl, result::setValue);
+        return result;
+    }
+
+    public LiveData<SeriesRepository.UpdateExistingSeriesOutcome> updateExistingSeries(
+            String title, String watchUrl, String notes) {
+        return updateExistingSeries(title, null, watchUrl, notes);
+    }
+
+    public LiveData<SeriesRepository.UpdateExistingSeriesOutcome> updateExistingSeries(
+            String title, String watchAt, String watchUrl, String notes) {
+        MutableLiveData<SeriesRepository.UpdateExistingSeriesOutcome> result = new MutableLiveData<>();
+        repository.updateExistingSeriesByTitle(title, watchAt, watchUrl, notes, result::setValue);
+        return result;
     }
 
     public void deleteAllSeriesCollectionRelationsForSeries(long seriesId) {

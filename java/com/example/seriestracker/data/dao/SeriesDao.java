@@ -74,9 +74,13 @@ public interface SeriesDao {
     @Query("DELETE FROM series_collection_cross_ref WHERE collectionId = :collectionId")
     void deleteAllSeriesCollectionRelationsForCollection(long collectionId);
 
+    @Query("DELETE FROM media_files")
+    void deleteAllMediaFiles();
+
     // === Удаление всех данных (для очистки перед восстановлением) ===
     @Transaction
     default void deleteAllData() {
+        deleteAllMediaFiles();
         deleteAllRelations();
         deleteAllSeries();
         deleteAllCollections();
@@ -100,6 +104,9 @@ public interface SeriesDao {
 
     @Query("SELECT * FROM series WHERE id = :seriesId")
     LiveData<Series> getSeriesById(long seriesId);
+
+    @Query("SELECT * FROM series WHERE id = :seriesId")
+    Series getSeriesByIdSync(long seriesId);
 
     @Query("SELECT * FROM collections WHERE id = :collectionId")
     LiveData<Collection> getCollectionById(long collectionId);
@@ -154,6 +161,9 @@ public interface SeriesDao {
     @Query("SELECT COUNT(*) > 0 FROM series WHERE LOWER(title) = LOWER(:seriesTitle)")
     LiveData<Boolean> doesSeriesExist(String seriesTitle);
 
+    @Query("SELECT COUNT(*) > 0 FROM series WHERE LOWER(title) = LOWER(:seriesTitle) AND id != :seriesId")
+    LiveData<Boolean> doesSeriesExistExcludeId(String seriesTitle, long seriesId);
+
     // === Синхронные методы для резервного копирования ===
     @Query("SELECT * FROM collections")
     List<Collection> getAllCollectionsSync();
@@ -177,6 +187,9 @@ public interface SeriesDao {
     // === Медиафайлы ===
     @Insert
     long insertMediaFile(MediaFile mediaFile);
+
+    @Insert
+    List<Long> insertMediaFiles(List<MediaFile> mediaFiles);
 
     @Query("DELETE FROM media_files WHERE id = :mediaId")
     void deleteMediaFile(long mediaId);
@@ -206,7 +219,45 @@ public interface SeriesDao {
     @Query("SELECT * FROM series WHERE title = :title")
     Series getSeriesByTitle(String title);
 
+    @Query("SELECT * FROM series WHERE LOWER(title) = LOWER(:title) LIMIT 1")
+    Series getSeriesByTitleIgnoreCase(String title);
+
     @Query("SELECT * FROM media_files WHERE fileUri = :fileUri AND seriesId = :seriesId")
     MediaFile getMediaFileByUriAndSeries(String fileUri, long seriesId);
 
+    @Query("SELECT * FROM series WHERE cloudId = :cloudId LIMIT 1")
+    Series getSeriesByCloudId(String cloudId);
+
+    @Query("SELECT * FROM collections WHERE cloudId = :cloudId LIMIT 1")
+    Collection getCollectionByCloudId(String cloudId);
+
+    @Query("SELECT * FROM media_files WHERE cloudId = :cloudId LIMIT 1")
+    MediaFile getMediaFileByCloudId(String cloudId);
+
+    @Query("SELECT * FROM series WHERE syncDirty = 1")
+    List<Series> getDirtySeries();
+
+    @Query("SELECT * FROM collections WHERE syncDirty = 1")
+    List<Collection> getDirtyCollections();
+
+    @Query("SELECT * FROM media_files WHERE syncDirty = 1")
+    List<MediaFile> getDirtyMediaFiles();
+
+    @Query("SELECT * FROM series_collection_cross_ref WHERE syncDirty = 1")
+    List<SeriesCollectionCrossRef> getDirtyRelations();
+
+    @Query("UPDATE series SET cloudId = :cloudId, syncDirty = :dirty, updatedAt = :updatedAt, cloudImagePath = :cloudImagePath WHERE id = :id")
+    void updateSeriesSyncMeta(long id, String cloudId, boolean dirty, long updatedAt, String cloudImagePath);
+
+    @Query("UPDATE collections SET cloudId = :cloudId, syncDirty = :dirty, updatedAt = :updatedAt WHERE id = :id")
+    void updateCollectionSyncMeta(long id, String cloudId, boolean dirty, long updatedAt);
+
+    @Query("UPDATE media_files SET cloudId = :cloudId, syncDirty = :dirty, updatedAt = :updatedAt, storagePath = :storagePath WHERE id = :id")
+    void updateMediaSyncMeta(long id, String cloudId, boolean dirty, long updatedAt, String storagePath);
+
+    @Query("UPDATE series_collection_cross_ref SET syncDirty = :dirty, updatedAt = :updatedAt WHERE seriesId = :seriesId AND collectionId = :collectionId")
+    void updateRelationSyncMeta(long seriesId, long collectionId, boolean dirty, long updatedAt);
+
+    @Update
+    void updateMediaFile(MediaFile mediaFile);
 }

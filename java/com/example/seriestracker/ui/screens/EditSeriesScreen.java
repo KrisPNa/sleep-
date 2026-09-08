@@ -1,14 +1,16 @@
 
 package com.example.seriestracker.ui.screens;
 
-import android.Manifest;
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ContentUris;
+import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.DocumentsContract;
@@ -20,7 +22,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -29,10 +30,10 @@ import android.widget.Toast;
 import android.text.method.LinkMovementMethod;
 import android.text.util.Linkify;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
+import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.GridLayoutManager;
@@ -45,7 +46,12 @@ import com.example.seriestracker.data.entities.Collection;
 import com.example.seriestracker.data.entities.MediaFile;
 import com.example.seriestracker.data.entities.Series;
 import com.example.seriestracker.ui.adapters.MediaAdapter;
+import com.example.seriestracker.ui.utils.WatchLinkMovementMethod;
+import com.example.seriestracker.ui.utils.WatchLinkSearchDialog;
 import com.example.seriestracker.ui.viewmodels.SeriesViewModel;
+import com.example.seriestracker.utils.BrowserOpenHelper;
+import com.example.seriestracker.utils.MediaStorageHelper;
+import com.example.seriestracker.utils.WatchLinkTextHelper;
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 
 import java.io.File;
@@ -56,19 +62,17 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 public class EditSeriesScreen extends Fragment {
 
-    // Константы для выбора изображения сериала
     private static final int PICK_SERIES_IMAGE_REQUEST = 1;
-    private static final int REQUEST_SERIES_IMAGE_PERMISSION = 2;
-
-    // Константы для добавления медиафайлов (МНОЖЕСТВЕННЫЙ ВЫБОР)
     private static final int PICK_MULTIPLE_MEDIA_REQUEST = 3;
-    private static final int REQUEST_MEDIA_PERMISSION = 4;
 
     private SeriesViewModel viewModel;
     private Series series;
@@ -77,16 +81,28 @@ public class EditSeriesScreen extends Fragment {
     private EditText titleEditText;
     private EditText notesEditText;
     private TextView notesTextView;
+    private TextView watchUrlLabel;
+    private EditText watchUrlEditText;
+    private TextView watchUrlTextView;
+    private TextView watchAtLabel;
+    private View watchAtEditContainer;
+    private EditText watchAtEditText;
+    private ImageButton searchWatchAtButton;
+    private TextView watchAtTextView;
+    private com.google.android.material.button.MaterialButton playWatchButton;
     private EditText genreEditText;
     private EditText seasonsEditText;
     private EditText episodesEditText;
     private ImageView seriesImageView;
+    private ImageView coverBlurBackground;
     private Button selectImageButton;
-    private Button editButton;
+    private ImageButton deleteCoverButton;
+    private ImageButton editButton;
     private Button saveButton;
     private Button deleteButton;
     private MaterialAutoCompleteTextView statusSpinner;
-    private CheckBox favoriteCheckBox;
+    private ImageButton favoriteButton;
+    private boolean favoriteSelected = false;
     private ImageButton backButton;
     private Button collectionsButton;
     private TextView selectedCollectionsText;
@@ -102,7 +118,21 @@ public class EditSeriesScreen extends Fragment {
     private Map<Long, Collection> selectedCollectionsMap = new HashMap<>();
 
     private Uri selectedImageUri;
+    private boolean coverMarkedForRemoval;
     private long seriesId;
+    private boolean readOnlyMode = true;
+    private boolean exitAfterSave;
+
+    private String originalTitle = "";
+    private String originalWatchAt = "";
+    private String originalWatchUrl = "";
+    private String originalNotes = "";
+    private String originalGenre = "";
+    private String originalSeasons = "";
+    private String originalEpisodes = "";
+    private String originalStatus = "";
+    private boolean originalFavorite;
+    private Set<Long> originalCollectionIds = new HashSet<>();
 
     public EditSeriesScreen() {
         // Required empty public constructor
@@ -149,22 +179,42 @@ public class EditSeriesScreen extends Fragment {
 
         // Обработчики событий
         setupEventListeners();
+
+        requireActivity().getOnBackPressedDispatcher().addCallback(
+                getViewLifecycleOwner(),
+                new OnBackPressedCallback(true) {
+                    @Override
+                    public void handleOnBackPressed() {
+                        handleBackNavigation();
+                    }
+                });
     }
 
     private void initViews(View view) {
         titleEditText = view.findViewById(R.id.titleEditText);
         notesEditText = view.findViewById(R.id.notesEditText);
         notesTextView = view.findViewById(R.id.notesTextView);
+        watchUrlLabel = view.findViewById(R.id.watchUrlLabel);
+        watchUrlEditText = view.findViewById(R.id.watchUrlEditText);
+        watchUrlTextView = view.findViewById(R.id.watchUrlTextView);
+        watchAtLabel = view.findViewById(R.id.watchAtLabel);
+        watchAtEditContainer = view.findViewById(R.id.watchAtEditContainer);
+        watchAtEditText = view.findViewById(R.id.watchAtEditText);
+        searchWatchAtButton = view.findViewById(R.id.searchWatchAtButton);
+        watchAtTextView = view.findViewById(R.id.watchAtTextView);
+        playWatchButton = view.findViewById(R.id.playWatchButton);
         genreEditText = view.findViewById(R.id.genreEditText);
         seasonsEditText = view.findViewById(R.id.seasonsEditText);
         episodesEditText = view.findViewById(R.id.episodesEditText);
         seriesImageView = view.findViewById(R.id.seriesImageView);
+        coverBlurBackground = view.findViewById(R.id.coverBlurBackground);
         selectImageButton = view.findViewById(R.id.selectImageButton);
+        deleteCoverButton = view.findViewById(R.id.deleteCoverButton);
         editButton = view.findViewById(R.id.editButton);
         saveButton = view.findViewById(R.id.saveButton);
         deleteButton = view.findViewById(R.id.deleteButton);
         statusSpinner = view.findViewById(R.id.statusSpinner);
-        favoriteCheckBox = view.findViewById(R.id.favoriteCheckBox);
+        favoriteButton = view.findViewById(R.id.favoriteButton);
         backButton = view.findViewById(R.id.backButton);
         collectionsButton = view.findViewById(R.id.collectionsButton);
         selectedCollectionsText = view.findViewById(R.id.selectedCollectionsText);
@@ -195,15 +245,43 @@ public class EditSeriesScreen extends Fragment {
         mediaRecyclerView.setAdapter(mediaAdapter);
     }
     private void setReadOnlyMode(boolean readOnly) {
+        readOnlyMode = readOnly;
+
         // Управление видимостью кнопок
         if (readOnly) {
             editButton.setVisibility(View.VISIBLE);
             saveButton.setVisibility(View.GONE);
             deleteButton.setVisibility(View.GONE);
 
+            selectImageButton.setVisibility(View.GONE);
+            addMediaButton.setVisibility(View.GONE);
+            collectionsButton.setVisibility(View.GONE);
+
             // В режиме просмотра скрываем EditText и показываем TextView
             notesEditText.setVisibility(View.GONE);
             notesTextView.setVisibility(View.VISIBLE);
+
+            watchUrlEditText.setVisibility(View.GONE);
+            watchUrlLabel.setVisibility(View.VISIBLE);
+            watchUrlTextView.setVisibility(View.VISIBLE);
+            updateWatchUrlReadOnlyDisplay();
+
+            if (watchAtEditContainer != null) {
+                watchAtEditContainer.setVisibility(View.GONE);
+            }
+            if (watchAtEditText != null) {
+                watchAtEditText.setVisibility(View.GONE);
+            }
+            if (watchAtLabel != null) {
+                watchAtLabel.setVisibility(View.GONE);
+            }
+            if (watchAtTextView != null) {
+                watchAtTextView.setVisibility(View.GONE);
+            }
+            updateWatchAtReadOnlyDisplay();
+            if (searchWatchAtButton != null) {
+                searchWatchAtButton.setVisibility(View.GONE);
+            }
 
             // Копируем текст из EditText в TextView и делаем ссылки кликабельными
             String notesText = notesEditText.getText().toString();
@@ -215,10 +293,36 @@ public class EditSeriesScreen extends Fragment {
             saveButton.setVisibility(View.VISIBLE);
             deleteButton.setVisibility(View.VISIBLE);
 
+            selectImageButton.setVisibility(View.VISIBLE);
+            addMediaButton.setVisibility(View.VISIBLE);
+            updateCollectionsButtonVisibility();
+
             // В режиме редактирования показываем EditText и скрываем TextView
             notesEditText.setVisibility(View.VISIBLE);
             notesTextView.setVisibility(View.GONE);
+
+            watchUrlLabel.setVisibility(View.VISIBLE);
+            watchUrlEditText.setVisibility(View.VISIBLE);
+            watchUrlTextView.setVisibility(View.GONE);
+
+            if (watchAtLabel != null) {
+                watchAtLabel.setVisibility(View.GONE);
+            }
+            if (watchAtEditContainer != null) {
+                watchAtEditContainer.setVisibility(View.GONE);
+            }
+            if (watchAtEditText != null) {
+                watchAtEditText.setVisibility(View.GONE);
+            }
+            if (watchAtTextView != null) {
+                watchAtTextView.setVisibility(View.GONE);
+            }
+            if (searchWatchAtButton != null) {
+                searchWatchAtButton.setVisibility(View.VISIBLE);
+            }
         }
+
+        updatePlayWatchButtonState();
 
         // Управление редактируемостью полей
         titleEditText.setEnabled(!readOnly);
@@ -229,46 +333,203 @@ public class EditSeriesScreen extends Fragment {
         notesEditText.setFocusable(!readOnly);
         notesEditText.setFocusableInTouchMode(!readOnly);
 
+        watchUrlEditText.setEnabled(!readOnly);
+        watchUrlEditText.setFocusable(!readOnly);
+        watchUrlEditText.setFocusableInTouchMode(!readOnly);
+
+        watchAtEditText.setEnabled(!readOnly);
+        watchAtEditText.setFocusable(!readOnly);
+        watchAtEditText.setFocusableInTouchMode(!readOnly);
+
         genreEditText.setEnabled(!readOnly);
         genreEditText.setFocusable(!readOnly);
         genreEditText.setFocusableInTouchMode(!readOnly);
+        styleExtraInfoField(genreEditText, readOnly);
 
         seasonsEditText.setEnabled(!readOnly);
         seasonsEditText.setFocusable(!readOnly);
         seasonsEditText.setFocusableInTouchMode(!readOnly);
+        styleExtraInfoField(seasonsEditText, readOnly);
 
         episodesEditText.setEnabled(!readOnly);
         episodesEditText.setFocusable(!readOnly);
         episodesEditText.setFocusableInTouchMode(!readOnly);
+        styleExtraInfoField(episodesEditText, readOnly);
 
         statusSpinner.setEnabled(!readOnly);
-        favoriteCheckBox.setEnabled(!readOnly);
-
-        selectImageButton.setEnabled(!readOnly);
-        collectionsButton.setEnabled(!readOnly);
-        addMediaButton.setEnabled(!readOnly);
+        statusSpinner.setAlpha(readOnly ? 0.92f : 1f);
 
         // Для RecyclerView медиафайлов нужно обновить адаптер
         if (mediaAdapter != null) {
             mediaAdapter.setEditMode(!readOnly);
         }
+
+        updateCoverActionsVisibility();
+    }
+
+    /** В режиме правки — такая же обводка, как у заметок/ссылок. */
+    private void styleExtraInfoField(EditText field, boolean readOnly) {
+        if (field == null || !isAdded()) return;
+        float density = getResources().getDisplayMetrics().density;
+        if (readOnly) {
+            field.setBackgroundResource(android.R.color.transparent);
+            field.setPadding(0, field.getPaddingTop(), 0, field.getPaddingBottom());
+        } else {
+            field.setBackgroundResource(R.drawable.edittext_background);
+            int padH = Math.round(12 * density);
+            int padV = Math.round(8 * density);
+            field.setPadding(padH, padV, padH, padV);
+        }
+    }
+
+    private boolean hasCoverImage() {
+        if (coverMarkedForRemoval) {
+            return false;
+        }
+        if (selectedImageUri != null) {
+            return true;
+        }
+        return series != null
+                && series.getImageUri() != null
+                && !series.getImageUri().isEmpty();
+    }
+
+    private void updateCoverActionsVisibility() {
+        if (deleteCoverButton == null || seriesImageView == null) {
+            return;
+        }
+        boolean hasCover = hasCoverImage();
+        deleteCoverButton.setVisibility(!readOnlyMode && hasCover ? View.VISIBLE : View.GONE);
+        seriesImageView.setClickable(hasCover);
+        seriesImageView.setFocusable(hasCover);
+    }
+
+    private String getCurrentCoverUriValue() {
+        if (selectedImageUri != null) {
+            return selectedImageUri.toString();
+        }
+        if (series != null && series.getImageUri() != null && !series.getImageUri().isEmpty()) {
+            return series.getImageUri();
+        }
+        return null;
+    }
+
+    private void openCoverViewer() {
+        String imageUri = getCurrentCoverUriValue();
+        if (imageUri == null) {
+            return;
+        }
+
+        String title = series != null && series.getTitle() != null ? series.getTitle() : "";
+        CoverViewerFragment viewerFragment = CoverViewerFragment.newInstance(imageUri, title);
+        requireActivity().getSupportFragmentManager()
+                .beginTransaction()
+                .hide(this)
+                .add(R.id.fragment_container, viewerFragment)
+                .addToBackStack("cover_viewer")
+                .commit();
+    }
+
+    private void showDeleteCoverDialog() {
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.delete_cover)
+                .setMessage(R.string.delete_cover_confirm)
+                .setPositiveButton("Удалить", (dialog, which) -> removeCover())
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void removeCover() {
+        coverMarkedForRemoval = true;
+        selectedImageUri = null;
+        clearCoverViews();
+        updateCoverActionsVisibility();
+        Toast.makeText(getContext(), "Обложка будет удалена после сохранения", Toast.LENGTH_SHORT).show();
+    }
+
+    private String lastLoadedCoverKey = "";
+
+    private void loadCoverIntoViews(@Nullable Uri coverUri) {
+        if (!isAdded() || seriesImageView == null) return;
+        if (coverUri == null) {
+            lastLoadedCoverKey = "";
+            clearCoverViews();
+            return;
+        }
+        String key = coverUri.toString();
+        if (key.equals(lastLoadedCoverKey)
+                && seriesImageView.getDrawable() != null
+                && coverBlurBackground != null
+                && coverBlurBackground.getDrawable() != null) {
+            return;
+        }
+        lastLoadedCoverKey = key;
+
+        Glide.with(this)
+                .load(coverUri)
+                .placeholder(R.drawable.ic_baseline_image_24)
+                .override(360, 480)
+                .centerCrop()
+                .into(seriesImageView);
+
+        if (coverBlurBackground != null) {
+            Glide.with(this)
+                    .load(coverUri)
+                    .override(72, 96)
+                    .centerCrop()
+                    .into(coverBlurBackground);
+            applyCoverBlurEffect();
+            coverBlurBackground.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void clearCoverViews() {
+        lastLoadedCoverKey = "";
+        if (seriesImageView != null) {
+            seriesImageView.setImageResource(R.drawable.ic_baseline_image_24);
+        }
+        if (coverBlurBackground != null) {
+            coverBlurBackground.setImageDrawable(null);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                coverBlurBackground.setRenderEffect(null);
+            }
+            coverBlurBackground.setVisibility(View.GONE);
+        }
+    }
+
+    private void applyCoverBlurEffect() {
+        if (coverBlurBackground == null) return;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            coverBlurBackground.setRenderEffect(
+                    android.graphics.RenderEffect.createBlurEffect(
+                            18f, 18f, android.graphics.Shader.TileMode.CLAMP));
+        } else {
+            coverBlurBackground.setScaleX(1.15f);
+            coverBlurBackground.setScaleY(1.15f);
+            coverBlurBackground.setAlpha(0.85f);
+        }
+    }
+
+    private void updateCollectionsButtonVisibility() {
+        boolean hasCollections = allCollections != null && !allCollections.isEmpty();
+        collectionsTitle.setVisibility(hasCollections ? View.VISIBLE : View.GONE);
+        selectedCollectionsText.setVisibility(hasCollections ? View.VISIBLE : View.GONE);
+        collectionsButton.setVisibility(hasCollections && !readOnlyMode ? View.VISIBLE : View.GONE);
     }
 
 
     private void openMediaViewer(int position) {
-        if (mediaFiles == null || mediaFiles.isEmpty()) {
+        if (mediaFiles == null || mediaFiles.isEmpty() || position < 0 || position >= mediaFiles.size()) {
             return;
         }
 
-        // Создаем копию списка для передачи во фрагмент
         ArrayList<MediaFile> mediaList = new ArrayList<>(mediaFiles);
-
-        // Создаем и показываем фрагмент просмотрщика
         MediaViewerFragment viewerFragment = MediaViewerFragment.newInstance(mediaList, position);
 
         requireActivity().getSupportFragmentManager()
                 .beginTransaction()
-                .replace(R.id.fragment_container, viewerFragment)
+                .hide(this)
+                .add(R.id.fragment_container, viewerFragment)
                 .addToBackStack("media_viewer")
                 .commit();
     }
@@ -286,15 +547,10 @@ public class EditSeriesScreen extends Fragment {
         viewModel.getAllCollections().observe(getViewLifecycleOwner(), collections -> {
             if (collections != null && !collections.isEmpty()) {
                 allCollections = collections;
-                collectionsTitle.setVisibility(View.VISIBLE);
-                collectionsButton.setVisibility(View.VISIBLE);
-                selectedCollectionsText.setVisibility(View.VISIBLE);
             } else {
                 allCollections.clear();
-                collectionsTitle.setVisibility(View.GONE);
-                collectionsButton.setVisibility(View.GONE);
-                selectedCollectionsText.setVisibility(View.GONE);
             }
+            updateCollectionsButtonVisibility();
         });
     }
 
@@ -319,8 +575,42 @@ public class EditSeriesScreen extends Fragment {
         });
     }
 
+    private void updateWatchAtReadOnlyDisplay() {
+        if (watchAtEditText == null) return;
+        String watchAtText = watchAtEditText.getText().toString().trim();
+        if (watchAtTextView == null) return;
+        watchAtTextView.setText(watchAtText);
+        Linkify.addLinks(watchAtTextView, Linkify.WEB_URLS);
+        watchAtTextView.setMovementMethod(new WatchLinkMovementMethod(watchAtTextView,
+                new WatchLinkMovementMethod.UrlHandler() {
+                    @Override
+                    public void onUrlClick(String url) {
+                        BrowserOpenHelper.openUrl(requireContext(), url);
+                    }
+
+                    @Override
+                    public void onUrlLongClick(String url) {
+                        BrowserOpenHelper.showBrowserChooser(requireContext(), url);
+                    }
+                }));
+        watchAtTextView.setLinksClickable(true);
+        watchAtTextView.setLongClickable(true);
+    }
+
+    private void updateWatchUrlReadOnlyDisplay() {
+        String watchUrlText = watchUrlEditText.getText().toString().trim();
+        watchUrlTextView.setText(watchUrlText);
+        Linkify.addLinks(watchUrlTextView, Linkify.WEB_URLS);
+        watchUrlTextView.setMovementMethod(LinkMovementMethod.getInstance());
+    }
+
     private void populateForm(Series series) {
         titleEditText.setText(series.getTitle());
+        watchAtEditText.setText(series.getWatchAt());
+        updateWatchAtReadOnlyDisplay();
+        updatePlayWatchButtonState();
+        watchUrlEditText.setText(series.getWatchUrl());
+        updateWatchUrlReadOnlyDisplay();
         notesEditText.setText(series.getNotes());
 
         // Также устанавливаем текст в notesTextView для режима просмотра
@@ -340,20 +630,24 @@ public class EditSeriesScreen extends Fragment {
         }
 
         // Загрузка основного изображения сериала
-        if (series.getImageUri() != null && !series.getImageUri().isEmpty()) {
-            Glide.with(this)
-                    .load(series.getImageUri())
-                    .placeholder(R.drawable.ic_baseline_image_24)
-                    .into(seriesImageView);
+        if (hasCoverImage()) {
+            Uri coverUri = selectedImageUri != null
+                    ? selectedImageUri
+                    : MediaStorageHelper.resolveLoadUri(series.getImageUri());
+            loadCoverIntoViews(coverUri);
+        } else {
+            clearCoverViews();
         }
+        updateCoverActionsVisibility();
 
         // Установка статуса
         String status = series.getStatus();
         String displayText = getStatusDisplayText(status);
         statusSpinner.setText(displayText, false);
+        applyStatusAppearance(status);
 
-        // Чекбокс избранного
-        favoriteCheckBox.setChecked(series.getIsFavorite());
+        // Избранное
+        setFavoriteSelected(series.getIsFavorite());
     }
 
     private void updateSelectedCollectionsText() {
@@ -432,19 +726,89 @@ public class EditSeriesScreen extends Fragment {
                 android.R.layout.simple_dropdown_item_1line, statuses);
         statusSpinner.setAdapter(adapter);
         statusSpinner.setThreshold(1);
+        statusSpinner.setOnItemClickListener((parent, view, position, id) -> {
+            String display = (String) parent.getItemAtPosition(position);
+            applyStatusAppearance(getStatusValue(display));
+        });
+    }
+
+    /** Контурная кнопка статуса — цвет как на карточке. */
+    private void applyStatusAppearance(String statusValue) {
+        if (statusSpinner == null) return;
+        int outline = getStatusColor(statusValue);
+        statusSpinner.setTextColor(outline);
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.RECTANGLE);
+        bg.setColor(Color.TRANSPARENT);
+        bg.setStroke(Math.round(1.5f * getResources().getDisplayMetrics().density), outline);
+        bg.setCornerRadius(999f * getResources().getDisplayMetrics().density);
+        statusSpinner.setBackground(bg);
+
+        android.graphics.drawable.Drawable[] drawables = statusSpinner.getCompoundDrawablesRelative();
+        if (drawables[0] != null) {
+            DrawableCompat.setTint(drawables[0].mutate(), outline);
+        }
+    }
+
+    private int getStatusColor(String status) {
+        switch (status != null ? status : "") {
+            case "watching":
+                return Color.parseColor("#42A5F5");
+            case "completed":
+                return Color.parseColor("#66BB6A");
+            case "dropped":
+                return Color.parseColor("#EF5350");
+            case "planned":
+            default:
+                return Color.parseColor("#7E57C2");
+        }
+    }
+
+    private void setFavoriteSelected(boolean selected) {
+        favoriteSelected = selected;
+        if (favoriteButton == null) return;
+        favoriteButton.setSelected(selected);
+        favoriteButton.setImageResource(R.drawable.ic_bookmark_favorite_24);
+        favoriteButton.setColorFilter(selected ? 0xFFC49A5A : 0xFF9AA3B5);
+        favoriteButton.setAlpha(1f);
+    }
+
+    private boolean isFavoriteSelected() {
+        return favoriteSelected;
     }
 
     private void setupEventListeners() {
-        backButton.setOnClickListener(v -> requireActivity().getSupportFragmentManager().popBackStack());
+        backButton.setOnClickListener(v -> handleBackNavigation());
 
-        // Обработчик для выбора ОСНОВНОГО изображения сериала
-        selectImageButton.setOnClickListener(v -> {
-            if (checkSeriesImagePermission()) {
-                openSeriesImagePicker();
-            } else {
-                requestSeriesImagePermission();
-            }
+        titleEditText.setOnLongClickListener(v -> {
+            copyTitleToClipboard();
+            return true;
         });
+
+        if (searchWatchAtButton != null) {
+            searchWatchAtButton.setOnClickListener(v -> searchWatchLinks());
+        }
+        if (playWatchButton != null) {
+            playWatchButton.setOnClickListener(v -> openFirstWatchLink());
+            playWatchButton.setOnLongClickListener(v -> {
+                openFirstWatchLinkChooser();
+                return true;
+            });
+        }
+        if (watchAtEditText != null) {
+            watchAtEditText.addTextChangedListener(new android.text.TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    updatePlayWatchButtonState();
+                }
+                @Override public void afterTextChanged(android.text.Editable s) {}
+            });
+        }
+
+        selectImageButton.setOnClickListener(v -> openSeriesImagePicker());
+        deleteCoverButton.setOnClickListener(v -> showDeleteCoverDialog());
+        seriesImageView.setOnClickListener(v -> openCoverViewer());
 
         statusSpinner.setOnClickListener(v -> {
             statusSpinner.showDropDown();
@@ -457,32 +821,157 @@ public class EditSeriesScreen extends Fragment {
             return true;
         });
 
+        if (favoriteButton != null) {
+            favoriteButton.setOnClickListener(v -> {
+                setFavoriteSelected(!isFavoriteSelected());
+                if (readOnlyMode && series != null) {
+                    series.setIsFavorite(isFavoriteSelected());
+                    viewModel.toggleFavoriteStatus(series.getId(), isFavoriteSelected());
+                }
+            });
+        }
+
         // Устанавливаем начальный режим - только для просмотра
         setReadOnlyMode(true);
 
         editButton.setOnClickListener(v -> {
-            setReadOnlyMode(false); // Переключаем в режим редактирования
+            captureOriginalState();
+            setReadOnlyMode(false);
         });
         collectionsButton.setOnClickListener(v -> {
             showCollectionsDialog();
         });
 
-        // Обработчик для добавления МНОЖЕСТВЕННЫХ МЕДИАФАЙЛОВ
-        addMediaButton.setOnClickListener(v -> {
-            if (checkMediaPermission()) {
-                openMultipleMediaPicker();
-            } else {
-                requestMediaPermission();
-            }
-        });
+        addMediaButton.setOnClickListener(v -> openMultipleMediaPicker());
 
-        saveButton.setOnClickListener(v -> saveSeries());
+        saveButton.setOnClickListener(v -> {
+            exitAfterSave = false;
+            saveSeries();
+        });
 
         deleteButton.setOnClickListener(v -> {
             if (series != null) {
                 showDeleteConfirmationDialog();
             }
         });
+    }
+
+    private void searchWatchLinks() {
+        String title = titleEditText.getText() != null
+                ? titleEditText.getText().toString().trim()
+                : "";
+        WatchLinkSearchDialog.show(this, title, urls -> {
+            String merged = WatchLinkTextHelper.mergeUrls(
+                    watchAtEditText.getText().toString(), urls);
+            watchAtEditText.setText(merged);
+            updatePlayWatchButtonState();
+            Toast.makeText(getContext(), R.string.watch_links_added, Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void openFirstWatchLink() {
+        String url = firstWatchUrl();
+        if (url == null || !isAdded() || getContext() == null) return;
+        BrowserOpenHelper.openUrl(requireContext(), url);
+    }
+
+    private void openFirstWatchLinkChooser() {
+        String url = firstWatchUrl();
+        if (url == null || !isAdded() || getContext() == null) return;
+        BrowserOpenHelper.showBrowserChooser(requireContext(), url);
+    }
+
+    @Nullable
+    private String firstWatchUrl() {
+        String raw = "";
+        if (watchAtEditText != null && watchAtEditText.getText() != null) {
+            raw = watchAtEditText.getText().toString();
+        }
+        if (raw.trim().isEmpty() && series != null && series.getWatchAt() != null) {
+            raw = series.getWatchAt();
+        }
+        for (String part : raw.split("[\\n,;]+")) {
+            String u = part.trim();
+            if (u.isEmpty()) continue;
+            if (!u.startsWith("http://") && !u.startsWith("https://")) {
+                u = "https://" + u;
+            }
+            return u;
+        }
+        return null;
+    }
+
+    private void updatePlayWatchButtonState() {
+        if (playWatchButton == null) return;
+        boolean hasLink = firstWatchUrl() != null;
+        playWatchButton.setEnabled(hasLink);
+        playWatchButton.setAlpha(hasLink ? 1f : 0.38f);
+    }
+
+    private void handleBackNavigation() {
+        if (!readOnlyMode && hasUnsavedChanges()) {
+            showUnsavedChangesDialog();
+            return;
+        }
+        requireActivity().getSupportFragmentManager().popBackStack();
+    }
+
+    private void showUnsavedChangesDialog() {
+        if (!isAdded() || getContext() == null) {
+            return;
+        }
+        new AlertDialog.Builder(requireContext())
+                .setTitle(R.string.save_changes_title)
+                .setMessage(R.string.save_changes_message)
+                .setPositiveButton(R.string.save, (dialog, which) -> {
+                    exitAfterSave = true;
+                    saveSeries();
+                })
+                .setNegativeButton(R.string.discard, (dialog, which) ->
+                        requireActivity().getSupportFragmentManager().popBackStack())
+                .setNeutralButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void captureOriginalState() {
+        originalTitle = textOf(titleEditText);
+        originalWatchAt = textOf(watchAtEditText);
+        originalWatchUrl = textOf(watchUrlEditText);
+        originalNotes = textOf(notesEditText);
+        originalGenre = textOf(genreEditText);
+        originalSeasons = textOf(seasonsEditText);
+        originalEpisodes = textOf(episodesEditText);
+        originalStatus = statusSpinner != null ? statusSpinner.getText().toString().trim() : "";
+        originalFavorite = isFavoriteSelected();
+        originalCollectionIds = new HashSet<>(selectedCollectionsMap.keySet());
+    }
+
+    private boolean hasUnsavedChanges() {
+        if (selectedImageUri != null || coverMarkedForRemoval) {
+            return true;
+        }
+        if (!Objects.equals(originalTitle, textOf(titleEditText))
+                || !Objects.equals(originalWatchAt, textOf(watchAtEditText))
+                || !Objects.equals(originalWatchUrl, textOf(watchUrlEditText))
+                || !Objects.equals(originalNotes, textOf(notesEditText))
+                || !Objects.equals(originalGenre, textOf(genreEditText))
+                || !Objects.equals(originalSeasons, textOf(seasonsEditText))
+                || !Objects.equals(originalEpisodes, textOf(episodesEditText))) {
+            return true;
+        }
+        String currentStatus = statusSpinner != null ? statusSpinner.getText().toString().trim() : "";
+        if (!Objects.equals(originalStatus, currentStatus)) {
+            return true;
+        }
+        boolean currentFavorite = isFavoriteSelected();
+        if (originalFavorite != currentFavorite) {
+            return true;
+        }
+        return !originalCollectionIds.equals(selectedCollectionsMap.keySet());
+    }
+
+    private static String textOf(EditText editText) {
+        return editText != null ? editText.getText().toString().trim() : "";
     }
 
     private void openMultipleMediaPicker() {
@@ -502,53 +991,21 @@ public class EditSeriesScreen extends Fragment {
         }
     }
 
-    private boolean checkMediaPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return ContextCompat.checkSelfPermission(requireContext(),
-                    Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED &&
-                    ContextCompat.checkSelfPermission(requireContext(),
-                            Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED;
-        } else {
-            return ContextCompat.checkSelfPermission(requireContext(),
-                    Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    private void copyTitleToClipboard() {
+        if (!isAdded() || getContext() == null) {
+            return;
         }
-    }
-
-    private void requestMediaPermission() {
-        String[] permissions;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions = new String[]{
-                    Manifest.permission.READ_MEDIA_IMAGES,
-                    Manifest.permission.READ_MEDIA_VIDEO
-            };
-        } else {
-            permissions = new String[]{Manifest.permission.READ_EXTERNAL_STORAGE};
+        String title = titleEditText.getText().toString().trim();
+        if (title.isEmpty()) {
+            Toast.makeText(getContext(), "Нет названия для копирования", Toast.LENGTH_SHORT).show();
+            return;
         }
-
-        // Запрашиваем разрешение без повторных диалогов
-        ActivityCompat.requestPermissions(requireActivity(), permissions, REQUEST_MEDIA_PERMISSION);
-    }
-
-    private boolean checkSeriesImagePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return ContextCompat.checkSelfPermission(requireContext(),
-                    Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED;
-        } else {
-            return ContextCompat.checkSelfPermission(requireContext(),
-                    Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        ClipboardManager clipboard = (ClipboardManager) requireContext()
+                .getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText("series_title", title));
+            Toast.makeText(getContext(), R.string.title_copied, Toast.LENGTH_SHORT).show();
         }
-    }
-
-    private void requestSeriesImagePermission() {
-        String[] permissions;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions = new String[]{Manifest.permission.READ_MEDIA_IMAGES};
-        } else {
-            permissions = new String[]{Manifest.permission.READ_EXTERNAL_STORAGE};
-        }
-
-        // Запрашиваем разрешение без повторных диалогов
-        ActivityCompat.requestPermissions(requireActivity(), permissions, REQUEST_SERIES_IMAGE_PERMISSION);
     }
 
     private void openSeriesImagePicker() {
@@ -630,18 +1087,22 @@ public class EditSeriesScreen extends Fragment {
         String newTitle = titleEditText.getText().toString().trim();
         if (newTitle.isEmpty()) {
             Toast.makeText(getContext(), "Введите название сериала", Toast.LENGTH_SHORT).show();
+            exitAfterSave = false;
             return;
         }
 
         // Сохраняем ссылку на ViewModel локально
         SeriesViewModel localViewModel = viewModel;
-        if (localViewModel == null) return;
+        if (localViewModel == null) {
+            exitAfterSave = false;
+            return;
+        }
 
         // Проверяем, изменилось ли название
         if (!newTitle.equals(series.getTitle())) {
-            // Создаем временный LiveData наблюдатель
-            localViewModel.doesSeriesExist(newTitle).observe(getViewLifecycleOwner(), exists -> {
-                if (!isAdded() || getContext() == null) return; // Проверка
+            localViewModel.doesSeriesExistExcludeId(newTitle, series.getId())
+                    .observe(getViewLifecycleOwner(), exists -> {
+                if (!isAdded() || getContext() == null) return;
 
                 if (exists != null && exists) {
                     Toast.makeText(getContext(),
@@ -649,6 +1110,7 @@ public class EditSeriesScreen extends Fragment {
                             Toast.LENGTH_LONG).show();
                     titleEditText.setText(series.getTitle());
                     titleEditText.requestFocus();
+                    exitAfterSave = false;
                 } else {
                     updateSeriesData(newTitle);
                 }
@@ -663,6 +1125,8 @@ public class EditSeriesScreen extends Fragment {
 
         // 1. Обновляем данные сериала
         series.setTitle(title);
+        series.setWatchAt(watchAtEditText.getText().toString().trim());
+        series.setWatchUrl(watchUrlEditText.getText().toString().trim());
         series.setNotes(notesEditText.getText().toString().trim());
         series.setGenre(genreEditText.getText().toString().trim());
 
@@ -679,13 +1143,26 @@ public class EditSeriesScreen extends Fragment {
         }
 
         if (selectedImageUri != null) {
-            series.setImageUri(selectedImageUri.toString());
+            String fileName = MediaStorageHelper.getDisplayName(requireContext(), selectedImageUri);
+            String storedUri = MediaStorageHelper.copyCoverToInternalStorage(requireContext(), selectedImageUri, fileName);
+            if (storedUri != null) {
+                series.setImageUri(storedUri);
+                // Сбрасываем облачный путь, чтобы SyncEngine заново залил обложку
+                series.setCloudImagePath(null);
+            } else {
+                Toast.makeText(getContext(), "Не удалось сохранить обложку", Toast.LENGTH_SHORT).show();
+                exitAfterSave = false;
+                return;
+            }
+        } else if (coverMarkedForRemoval) {
+            series.setImageUri(null);
+            series.setCloudImagePath(null);
         }
 
         String selectedStatus = statusSpinner.getText().toString();
         series.setStatus(getStatusValue(selectedStatus));
         series.setIsWatched("Завершено".equals(selectedStatus));
-        series.setIsFavorite(favoriteCheckBox.isChecked());
+        series.setIsFavorite(isFavoriteSelected());
 
         // 2. Сохраняем сериал в БД
         if (viewModel != null) {
@@ -703,39 +1180,16 @@ public class EditSeriesScreen extends Fragment {
             viewModel.updateSeriesCollections(series.getId(), selectedCollectionIds);
         }
 
-        // 5. Показываем сообщение об успехе
+        // 5. Показываем сообщение об успехе и возвращаемся в режим просмотра
         Toast.makeText(getContext(), "Сериал обновлен", Toast.LENGTH_SHORT).show();
+        selectedImageUri = null;
+        coverMarkedForRemoval = false;
+        setReadOnlyMode(true);
+        captureOriginalState();
 
-        // 6. Возвращаемся назад БЕЗ ЗАДЕРЖКИ
-        if (isAdded() && getActivity() != null) {
-            requireActivity().runOnUiThread(() -> {
-                if (isAdded()) {
-                    requireActivity().getSupportFragmentManager().popBackStack();
-                }
-            });
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        if (requestCode == REQUEST_SERIES_IMAGE_PERMISSION) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                openSeriesImagePicker();
-            } else {
-                Toast.makeText(getContext(), "Нужно разрешение для выбора изображения сериала",
-                        Toast.LENGTH_SHORT).show();
-            }
-        } else if (requestCode == REQUEST_MEDIA_PERMISSION) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Разрешение получено, можно открыть выбор файлов
-                openMultipleMediaPicker();
-            } else {
-                Toast.makeText(getContext(), "Нужно разрешение для выбора медиафайлов",
-                        Toast.LENGTH_SHORT).show();
-            }
+        if (exitAfterSave) {
+            exitAfterSave = false;
+            requireActivity().getSupportFragmentManager().popBackStack();
         }
     }
 
@@ -747,12 +1201,11 @@ public class EditSeriesScreen extends Fragment {
             if (requestCode == PICK_SERIES_IMAGE_REQUEST && data != null && data.getData() != null) {
                 // Обработка выбора ОСНОВНОГО изображения сериала
                 selectedImageUri = data.getData();
+                coverMarkedForRemoval = false;
                 if (selectedImageUri != null) {
-                    Glide.with(this)
-                            .load(selectedImageUri)
-                            .placeholder(R.drawable.ic_baseline_image_24)
-                            .into(seriesImageView);
+                    loadCoverIntoViews(selectedImageUri);
                 }
+                updateCoverActionsVisibility();
                 Toast.makeText(getContext(), "Изображение сериала обновлено", Toast.LENGTH_SHORT).show();
 
             } else if (requestCode == PICK_MULTIPLE_MEDIA_REQUEST && data != null) {
@@ -845,51 +1298,22 @@ public class EditSeriesScreen extends Fragment {
     private boolean addMediaFile(Uri uri, String fileType) {
         try {
             String fileName = getFileName(uri);
-
-            // Копируем файл в внутреннее хранилище приложения
-            Uri copiedUri = copyFileToInternalStorage(uri, fileName);
-            if (copiedUri != null) {
-                MediaFile mediaFile = new MediaFile(seriesId,
-                        copiedUri.toString(),
-                        fileType,
-                        fileName);
-
-                // Получаем путь к файлу
-                String filePath = getRealPathFromURI(copiedUri);
-                if (filePath != null) {
-                    mediaFile.setFilePath(filePath);
-                }
-
-                // Получаем размер файла
-                long fileSize = getFileSize(copiedUri);
-                mediaFile.setFileSize(fileSize);
-
-                // Добавляем медиафайл в коллекцию
-                viewModel.addMediaFile(mediaFile);
-                return true;
-            } else {
-                // Если не удалось скопировать, сохраняем оригинальный URI как fallback
-                MediaFile mediaFile = new MediaFile(seriesId,
-                        uri.toString(),
-                        fileType,
-                        fileName);
-
-
-                // Получаем путь к файлу
-                String filePath = getRealPathFromURI(uri);
-                if (filePath != null) {
-                    mediaFile.setFilePath(filePath);
-                }
-
-                // Получаем размер файла
-                long fileSize = getFileSize(uri);
-                mediaFile.setFileSize(fileSize);
-
-                // Добавляем медиафайл в коллекцию
-                viewModel.addMediaFile(mediaFile);
-                return true;
+            String storedUri = MediaStorageHelper.copyMediaToInternalStorage(requireContext(), uri, fileName);
+            if (storedUri == null) {
+                Toast.makeText(getContext(), "Не удалось сохранить файл: " + fileName, Toast.LENGTH_SHORT).show();
+                return false;
             }
 
+            MediaFile mediaFile = new MediaFile(seriesId, storedUri, fileType, fileName);
+            String filePath = MediaStorageHelper.getInternalFilePath(requireContext(), storedUri);
+            if (filePath != null) {
+                mediaFile.setFilePath(filePath);
+            }
+
+            long fileSize = getFileSize(MediaStorageHelper.resolveLoadUri(storedUri));
+            mediaFile.setFileSize(fileSize);
+            viewModel.addMediaFile(mediaFile);
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -1149,10 +1573,22 @@ public class EditSeriesScreen extends Fragment {
         // Очищаем ссылки на UI элементы
         titleEditText = null;
         notesEditText = null;
+        notesTextView = null;
+        watchUrlLabel = null;
+        watchUrlEditText = null;
+        watchUrlTextView = null;
+        watchAtLabel = null;
+        watchAtEditContainer = null;
+        watchAtEditText = null;
+        searchWatchAtButton = null;
+        watchAtTextView = null;
+        playWatchButton = null;
         genreEditText = null;
         seasonsEditText = null;
         episodesEditText = null;
         seriesImageView = null;
+        coverBlurBackground = null;
+        deleteCoverButton = null;
         // ... остальные UI элементы ...
     }
 }

@@ -10,8 +10,10 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.example.seriestracker.R;
 import com.example.seriestracker.data.entities.MediaFile;
+import com.example.seriestracker.utils.MediaStorageHelper;
 
 import java.util.List;
 
@@ -79,13 +81,14 @@ public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaViewHol
             if (mediaFile.getFileUri() != null && !mediaFile.getFileUri().isEmpty()) {
                 try {
                     Glide.with(itemView.getContext())
-                            .load(mediaFile.getFileUri())
+                            .load(MediaStorageHelper.resolveLoadUri(mediaFile.getFileUri()))
+                            .override(300, 300)
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
                             .placeholder(R.drawable.ic_baseline_image_24)
                             .centerCrop()
-                            .error(R.drawable.ic_baseline_image_24) // Добавляем ошибку плейсхолдера
+                            .error(R.drawable.ic_baseline_image_24)
                             .into(mediaImageView);
                 } catch (Exception e) {
-                    // Если возникла ошибка при загрузке, показываем плейсхолдер
                     mediaImageView.setImageResource(R.drawable.ic_baseline_image_24);
                     e.printStackTrace();
                 }

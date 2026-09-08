@@ -1,65 +1,79 @@
 package com.example.seriestracker.ui.screens;
 
-import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
+import android.os.Looper;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
 import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.SeekBar;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.viewpager2.widget.ViewPager2;
 
-import com.bumptech.glide.Glide;
 import com.example.seriestracker.R;
 import com.example.seriestracker.data.entities.MediaFile;
-import com.example.seriestracker.ui.custom.CustomVideoView;
+import com.example.seriestracker.ui.adapters.MediaPagerAdapter;
+import com.example.seriestracker.ui.custom.SwipeToDismissLayout;
+import com.example.seriestracker.ui.custom.ZoomPanLayout;
+import com.example.seriestracker.utils.MediaStorageHelper;
+import com.example.seriestracker.utils.SystemUiHelper;
+import com.google.android.exoplayer2.ExoPlayer;
+import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.PlaybackException;
+import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.ui.PlayerView;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class MediaViewerFragment extends Fragment {
 
     private static final String ARG_MEDIA_FILES = "media_files";
     private static final String ARG_POSITION = "position";
+    private static final long SKIP_MS = 10_000L;
+    private static final long HIDE_CONTROLS_DELAY_MS = 3_000L;
+    private static final long PROGRESS_UPDATE_MS = 500L;
 
-    private FrameLayout videoContainer;
-    private CustomVideoView customVideoView;
-    private ImageView imageView;
+    private SwipeToDismissLayout swipeDismissLayout;
+    private ViewPager2 mediaViewPager;
+    private ProgressBar bufferingProgress;
+    private LinearLayout topBar;
+    private LinearLayout bottomBar;
+    private LinearLayout seekBarRow;
+    private TextView titleTextView;
+    private TextView pageIndicatorText;
+    private TextView currentTimeText;
+    private TextView totalTimeText;
+    private SeekBar seekBar;
     private ImageButton closeButton;
+    private ImageButton resetZoomButton;
     private ImageButton playPauseButton;
     private ImageButton rewindButton;
-    private ImageButton fastForwardButton;
-    private ImageButton rotateButton;
-    private ProgressBar progressBar;
-    private TextView fileNameTextView;
-    private LinearLayout videoControls;
-    private SeekBar seekBar;
+    private ImageButton forwardButton;
 
+    private MediaPagerAdapter pagerAdapter;
     private List<MediaFile> mediaFiles;
     private int currentPosition;
-    private boolean isVideoPlaying = false;
-    private Handler handler = new Handler();
-    private Runnable updateSeekBarRunnable;
+    private ExoPlayer player;
+    private PlayerView attachedPlayerView;
+    private boolean controlsVisible = true;
+    private boolean userSeeking;
+    private boolean isMediaZoomed;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable hideControlsRunnable;
-
-    private OnSwipeTouchListener swipeListener;
-
-    // Переменная для управления поворотом
-    private float rotationAngle = 0f;
+    private Runnable progressRunnable;
 
     public static MediaViewerFragment newInstance(ArrayList<MediaFile> mediaFiles, int position) {
         MediaViewerFragment fragment = new MediaViewerFragment();
@@ -71,516 +85,455 @@ public class MediaViewerFragment extends Fragment {
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         return inflater.inflate(R.layout.fragment_media_viewer, container, false);
     }
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-
-        initViews(view);
-
-        if (getArguments() != null) {
-            mediaFiles = (List<MediaFile>) getArguments().getSerializable(ARG_MEDIA_FILES);
-            currentPosition = getArguments().getInt(ARG_POSITION, 0);
-        }
-
-        showMedia(currentPosition);
-        setupGestures(view);
+        bindViews(view);
+        readArguments();
+        setupPlayer();
+        setupControls();
+        setupPager();
     }
 
-    private void initViews(View view) {
-        videoContainer = view.findViewById(R.id.videoContainer);
-        customVideoView = view.findViewById(R.id.customVideoView);
-        imageView = view.findViewById(R.id.imageView);
+    private void bindViews(View view) {
+        swipeDismissLayout = view.findViewById(R.id.swipeDismissLayout);
+        mediaViewPager = view.findViewById(R.id.mediaViewPager);
+        bufferingProgress = view.findViewById(R.id.bufferingProgress);
+        topBar = view.findViewById(R.id.topBar);
+        bottomBar = view.findViewById(R.id.bottomBar);
+        seekBarRow = view.findViewById(R.id.seekBarRow);
+        titleTextView = view.findViewById(R.id.titleTextView);
+        pageIndicatorText = view.findViewById(R.id.pageIndicatorText);
+        currentTimeText = view.findViewById(R.id.currentTimeText);
+        totalTimeText = view.findViewById(R.id.totalTimeText);
+        seekBar = view.findViewById(R.id.seekBar);
         closeButton = view.findViewById(R.id.closeButton);
+        resetZoomButton = view.findViewById(R.id.resetZoomButton);
         playPauseButton = view.findViewById(R.id.playPauseButton);
         rewindButton = view.findViewById(R.id.rewindButton);
-        fastForwardButton = view.findViewById(R.id.fastForwardButton);
-        rotateButton = view.findViewById(R.id.rotateButton);
-        progressBar = view.findViewById(R.id.progressBar);
-        fileNameTextView = view.findViewById(R.id.fileNameTextView);
-        videoControls = view.findViewById(R.id.videoControls);
-        seekBar = view.findViewById(R.id.seekBar);
+        forwardButton = view.findViewById(R.id.forwardButton);
+    }
 
-        closeButton.setOnClickListener(v -> {
-            if (customVideoView.isPlaying()) {
-                customVideoView.stopPlayback();
+    @SuppressWarnings("unchecked")
+    private void readArguments() {
+        Bundle args = getArguments();
+        if (args != null) {
+            mediaFiles = (List<MediaFile>) args.getSerializable(ARG_MEDIA_FILES);
+            currentPosition = args.getInt(ARG_POSITION, 0);
+        }
+        if (mediaFiles == null) {
+            mediaFiles = new ArrayList<>();
+        }
+        if (currentPosition < 0 || currentPosition >= mediaFiles.size()) {
+            currentPosition = 0;
+        }
+    }
+
+    private void setupPager() {
+        swipeDismissLayout.setOnDismissListener(this::closeViewer);
+
+        pagerAdapter = new MediaPagerAdapter(mediaFiles);
+        pagerAdapter.setZoomChangeListener(this::updateZoomState);
+        mediaViewPager.setAdapter(pagerAdapter);
+        mediaViewPager.setOffscreenPageLimit(1);
+        mediaViewPager.setCurrentItem(currentPosition, false);
+
+        mediaViewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+            @Override
+            public void onPageSelected(int position) {
+                if (position != currentPosition) {
+                    showPage(position, false);
+                }
             }
-            requireActivity().getSupportFragmentManager().popBackStack();
         });
 
-        playPauseButton.setOnClickListener(v -> {
-            if (customVideoView.isPlaying()) {
-                customVideoView.pause();
-                playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
-                isVideoPlaying = false;
-                showControls();
-                removeUpdateSeekBarCallback();
-            } else {
-                if (customVideoView.getCurrentMediaPlayer() != null) {
-                    customVideoView.start();
-                    playPauseButton.setImageResource(R.drawable.ic_baseline_pause_24);
-                    isVideoPlaying = true;
-                    hideControlsDelayed();
-                    startUpdateSeekBarCallback();
+        mediaViewPager.post(() -> showPage(currentPosition, true));
+    }
+
+    private void setupPlayer() {
+        player = new ExoPlayer.Builder(requireContext()).build();
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onPlaybackStateChanged(int playbackState) {
+                bufferingProgress.setVisibility(
+                        playbackState == Player.STATE_BUFFERING ? View.VISIBLE : View.GONE);
+                updatePlayPauseIcon();
+                if (playbackState == Player.STATE_READY) {
+                    updateDurationUi();
+                }
+                if (playbackState == Player.STATE_ENDED) {
+                    showControls();
+                    updateImmersiveMode(false);
+                    playPauseButton.setImageResource(R.drawable.ic_baseline_replay_24);
+                }
+            }
+
+            @Override
+            public void onIsPlayingChanged(boolean isPlaying) {
+                updatePlayPauseIcon();
+                updateImmersiveMode(isPlaying);
+                if (isPlaying) {
+                    scheduleHideControls();
+                    startProgressUpdates();
                 } else {
-                    Toast.makeText(getContext(), "Видео загружается...", Toast.LENGTH_SHORT).show();
+                    cancelHideControls();
+                    stopProgressUpdates();
                 }
             }
-        });
 
+            @Override
+            public void onPlayerError(@NonNull PlaybackException error) {
+                Toast.makeText(getContext(), "Ошибка воспроизведения видео", Toast.LENGTH_SHORT).show();
+                showControls();
+            }
+        });
+    }
+
+    private void setupControls() {
+        closeButton.setOnClickListener(v -> closeViewer());
+        resetZoomButton.setOnClickListener(v -> resetCurrentZoom());
+        playPauseButton.setOnClickListener(v -> togglePlayPause());
         rewindButton.setOnClickListener(v -> {
-            if (customVideoView.getCurrentMediaPlayer() != null) {
-                int currentPosition = customVideoView.getCurrentPosition();
-                int newPosition = Math.max(0, currentPosition - 10000);
-                customVideoView.seekTo(newPosition);
-                seekBar.setProgress(newPosition);
-                if (!customVideoView.isPlaying()) {
-                    showControls();
-                }
+            if (player != null) {
+                player.seekTo(Math.max(0, player.getCurrentPosition() - SKIP_MS));
             }
         });
-
-        fastForwardButton.setOnClickListener(v -> {
-            if (customVideoView.getCurrentMediaPlayer() != null) {
-                int currentPosition = customVideoView.getCurrentPosition();
-                int duration = customVideoView.getDuration();
-                int newPosition = Math.min(duration, currentPosition + 10000);
-                customVideoView.seekTo(newPosition);
-                seekBar.setProgress(newPosition);
-                if (!customVideoView.isPlaying()) {
-                    showControls();
-                }
+        forwardButton.setOnClickListener(v -> {
+            if (player != null && player.getDuration() > 0) {
+                player.seekTo(Math.min(player.getDuration(), player.getCurrentPosition() + SKIP_MS));
             }
         });
-
-        // Обработчик для кнопки поворота
-        rotateButton.setOnClickListener(v -> {
-            rotateMedia();
-        });
-
-        // Обработчик для SeekBar
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (fromUser && customVideoView.getCurrentMediaPlayer() != null) {
-                    customVideoView.seekTo(progress);
+                if (fromUser) {
+                    currentTimeText.setText(formatTime(progress));
                 }
             }
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-                if (customVideoView.isPlaying()) {
-                    customVideoView.pause();
-                }
+                userSeeking = true;
+                cancelHideControls();
             }
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                if (!customVideoView.isPlaying() && isVideoPlaying) {
-                    customVideoView.start();
+                if (player != null) {
+                    player.seekTo(seekBar.getProgress());
                 }
-            }
-        });
-
-        customVideoView.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-            @Override
-            public void onPrepared(MediaPlayer mp) {
-                Log.d("MediaViewer", "Video prepared successfully - duration: " + mp.getDuration() + "ms");
-                progressBar.setVisibility(View.GONE);
-                customVideoView.setProgressBarVisible(false);
-                playPauseButton.setVisibility(View.VISIBLE);
-                rewindButton.setVisibility(View.VISIBLE);
-                fastForwardButton.setVisibility(View.VISIBLE);
-                playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
-
-                // Настройка SeekBar для видео
-                seekBar.setVisibility(View.VISIBLE);
-                seekBar.setMax(mp.getDuration());
-                seekBar.setProgress(0);
-
-                isVideoPlaying = false;
-                showControls();
-
-                // Применяем текущий угол поворота к видео
-                applyRotation();
-                startUpdateSeekBarCallback();
-            }
-        });
-
-        customVideoView.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-            @Override
-            public boolean onError(MediaPlayer mp, int what, int extra) {
-                Log.e("MediaViewer", "Video error - what: " + what + ", extra: " + extra);
-                progressBar.setVisibility(View.GONE);
-                customVideoView.setProgressBarVisible(false);
-                playPauseButton.setVisibility(View.VISIBLE);
-                rewindButton.setVisibility(View.VISIBLE);
-                fastForwardButton.setVisibility(View.VISIBLE);
-                playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
-
-                // Показываем SeekBar даже при ошибке видео
-                seekBar.setVisibility(View.VISIBLE);
-
-                String errorMsg = "Ошибка воспроизведения видео";
-                if (what == MediaPlayer.MEDIA_ERROR_UNKNOWN) {
-                    errorMsg = "Неизвестная ошибка видео";
-                } else if (what == MediaPlayer.MEDIA_ERROR_SERVER_DIED) {
-                    errorMsg = "Сервер видео не отвечает";
+                userSeeking = false;
+                if (player != null && player.isPlaying()) {
+                    scheduleHideControls();
                 }
-                Toast.makeText(getContext(), errorMsg, Toast.LENGTH_SHORT).show();
-                return true;
-            }
-        });
-
-        customVideoView.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(MediaPlayer mp) {
-                Log.d("MediaViewer", "Video completed");
-                playPauseButton.setImageResource(R.drawable.ic_baseline_replay_24);
-                isVideoPlaying = false;
-                showControls();
-                removeUpdateSeekBarCallback();
-            }
-        });
-
-        customVideoView.setOnInfoListener(new MediaPlayer.OnInfoListener() {
-            @Override
-            public boolean onInfo(MediaPlayer mp, int what, int extra) {
-                Log.d("MediaViewer", "Video info - what: " + what + ", extra: " + extra);
-                switch (what) {
-                    case MediaPlayer.MEDIA_INFO_BUFFERING_START:
-                        Log.d("MediaViewer", "Buffering started");
-                        progressBar.setVisibility(View.VISIBLE);
-                        return true;
-                    case MediaPlayer.MEDIA_INFO_BUFFERING_END:
-                        Log.d("MediaViewer", "Buffering ended");
-                        progressBar.setVisibility(View.GONE);
-                        return true;
-                    case MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START:
-                        Log.d("MediaViewer", "Video rendering started");
-                        progressBar.setVisibility(View.GONE);
-                        return true;
-                    case MediaPlayer.MEDIA_INFO_VIDEO_TRACK_LAGGING:
-                        Log.d("MediaViewer", "Video track lagging");
-                        return true;
-                }
-                return false;
-            }
-        });
-
-        // Обработчик касаний для VideoView
-        customVideoView.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                if (swipeListener != null) {
-                    boolean handledByGesture = swipeListener.onTouch(v, event);
-                    if (!handledByGesture && event.getAction() == MotionEvent.ACTION_UP) {
-                        toggleControls();
-                    }
-                    return true;
-                }
-
-                if (event.getAction() == MotionEvent.ACTION_UP) {
-                    toggleControls();
-                }
-                return true;
             }
         });
     }
 
-    private void rotateMedia() {
-        // Изменяем угол поворота
-        rotationAngle += 90f;
-        if (rotationAngle >= 360f) {
-            rotationAngle = 0f;
-        }
+    private void showPage(int position, boolean initial) {
+        currentPosition = position;
+        MediaFile mediaFile = mediaFiles.get(position);
+        titleTextView.setText(mediaFile.getFileName());
+        pageIndicatorText.setText(getString(R.string.photo_page_indicator, position + 1, mediaFiles.size()));
 
-        // Применяем поворот
-        applyRotation();
+        detachPlayerFromView();
 
-        Log.d("MediaViewer", "Rotated to: " + rotationAngle + " degrees");
-    }
-
-    private void applyRotation() {
-        if (customVideoView.getVisibility() == View.VISIBLE) {
-            // Используем метод из CustomVideoView для поворота видео
-            customVideoView.setVideoRotation(rotationAngle);
-
-        } else if (imageView.getVisibility() == View.VISIBLE) {
-            // Поворачиваем изображение
-            imageView.setRotation(rotationAngle);
-
-            // Устанавливаем режим масштабирования для изображений
-            imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        if ("video".equals(mediaFile.getFileType())) {
+            mediaViewPager.post(() -> playVideoAt(position));
+            updateZoomState(false);
+            showControls();
+        } else {
+            stopVideoPlayback();
+            updateImmersiveMode(false);
+            mediaViewPager.post(() -> setupPhotoAt(position));
+            updateZoomState(false);
+            showControls();
         }
     }
 
-    private void setupGestures(View view) {
-        swipeListener = new OnSwipeTouchListener(requireContext()) {
-            @Override
-            public void onSwipeRight() {
-                if (currentPosition > 0) {
-                    Log.d("MediaViewer", "Swipe right - going to previous media");
-                    if (customVideoView.isPlaying()) {
-                        customVideoView.pause();
-                    }
-                    showMedia(currentPosition - 1);
-                }
-            }
-
-            @Override
-            public void onSwipeLeft() {
-                if (currentPosition < mediaFiles.size() - 1) {
-                    Log.d("MediaViewer", "Swipe left - going to next media");
-                    if (customVideoView.isPlaying()) {
-                        customVideoView.pause();
-                    }
-                    showMedia(currentPosition + 1);
-                }
-            }
-
-            @Override
-            public void onSwipeBottom() {
-                if (customVideoView.isPlaying()) {
-                    customVideoView.stopPlayback();
-                }
-                requireActivity().getSupportFragmentManager().popBackStack();
-            }
-
-            public void onDoubleTapPerformed() {
-                if (customVideoView.getVisibility() == View.VISIBLE) {
-                    if (customVideoView.isPlaying()) {
-                        customVideoView.pause();
-                        playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
-                        isVideoPlaying = false;
-                        showControls();
-                    } else {
-                        if (customVideoView.getCurrentMediaPlayer() != null) {
-                            customVideoView.start();
-                            playPauseButton.setImageResource(R.drawable.ic_baseline_pause_24);
-                            isVideoPlaying = true;
-                            hideControlsDelayed();
-                        }
-                    }
-                }
-            }
-        };
-
-        view.setOnTouchListener(swipeListener);
-    }
-
-    private void showMedia(int position) {
-        if (mediaFiles == null || mediaFiles.isEmpty() || position < 0 || position >= mediaFiles.size()) {
+    private void setupPhotoAt(int position) {
+        RecyclerView recyclerView = (RecyclerView) mediaViewPager.getChildAt(0);
+        ZoomPanLayout zoomLayout = pagerAdapter.getZoomLayoutAt(recyclerView, position);
+        if (zoomLayout == null) {
+            mediaViewPager.post(() -> setupPhotoAt(position));
             return;
         }
 
-        removeUpdateSeekBarCallback();
-
-        MediaFile mediaFile = mediaFiles.get(position);
-        currentPosition = position;
-
-        fileNameTextView.setText(mediaFile.getFileName());
-        Log.d("MediaViewer", "Showing media at position " + position + ": " + mediaFile.getFileName());
-
-        // Сброс параметров перед показом нового медиа
-        resetViewParameters();
-
-        if (mediaFile.getFileType().equals("video")) {
-            // Показываем видео
-            imageView.setVisibility(View.GONE);
-            customVideoView.setVisibility(View.VISIBLE);
-            videoControls.setVisibility(View.VISIBLE);
-
-            // Настраиваем элементы управления для видео
-            rotateButton.setVisibility(View.VISIBLE);
-            progressBar.setVisibility(View.VISIBLE);
-            playPauseButton.setVisibility(View.GONE);
-            rewindButton.setVisibility(View.GONE);
-            fastForwardButton.setVisibility(View.GONE);
-            seekBar.setVisibility(View.GONE);
-
-            String videoUri = mediaFile.getFileUri();
-            Log.d("MediaViewer", "Video URI: " + videoUri);
-
-            if (videoUri == null || videoUri.isEmpty()) {
-                Log.e("MediaViewer", "Video URI is null or empty");
-                Toast.makeText(getContext(), "Некорректный URI видео", Toast.LENGTH_SHORT).show();
-                progressBar.setVisibility(View.GONE);
-                return;
+        zoomLayout.resetZoom();
+        zoomLayout.setOnZoomChangeListener(this::updateZoomState);
+        zoomLayout.setOnTapListener(new ZoomPanLayout.OnTapListener() {
+            @Override
+            public void onSingleTap() {
+                toggleControls();
             }
 
-            Uri uri = Uri.parse(videoUri);
-            if (uri != null) {
-                try {
-                    Log.d("MediaViewer", "Setting video URI: " + uri.toString());
-
-                    if (customVideoView.isPlaying()) {
-                        customVideoView.stopPlayback();
-                    }
-
-                    customVideoView.setProgressBarVisible(true);
-                    customVideoView.setVideoThumbnail(videoUri);
-
-                    if ("file".equals(uri.getScheme())) {
-                        File file = new File(uri.getPath());
-                        if (!file.exists()) {
-                            Log.e("MediaViewer", "Video file does not exist: " + uri.getPath());
-                            Toast.makeText(getContext(), "Файл видео не найден", Toast.LENGTH_SHORT).show();
-                            progressBar.setVisibility(View.GONE);
-                            return;
-                        }
-                    }
-
-                    customVideoView.setVideoURI(uri);
-
-                    // Применяем текущий поворот
-                    applyRotation();
-
-                } catch (Exception e) {
-                    Log.e("MediaViewer", "Error setting video URI: " + e.getMessage(), e);
-                    Toast.makeText(getContext(), "Ошибка загрузки видео: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    progressBar.setVisibility(View.GONE);
-                }
-            } else {
-                Log.e("MediaViewer", "Invalid video URI");
-                Toast.makeText(getContext(), "Неверный URI видео", Toast.LENGTH_SHORT).show();
-                progressBar.setVisibility(View.GONE);
+            @Override
+            public void onDoubleTap() {
+                // Для фото двойной тап не нужен — только pinch/pan как у видео
             }
+        });
+    }
 
-        } else {
-            // Показываем изображение
-            Log.d("MediaViewer", "Showing image");
-            customVideoView.setVisibility(View.GONE);
-            videoControls.setVisibility(View.VISIBLE);
+    private void updateZoomState(boolean isZoomed) {
+        isMediaZoomed = isZoomed;
+        mediaViewPager.setUserInputEnabled(!isZoomed);
+        swipeDismissLayout.setDismissEnabled(!isZoomed);
+        applyControlsVisibility();
+    }
 
-            // Настраиваем элементы управления для изображения
-            playPauseButton.setVisibility(View.GONE);
-            rewindButton.setVisibility(View.GONE);
-            fastForwardButton.setVisibility(View.GONE);
-            rotateButton.setVisibility(View.VISIBLE);
-            seekBar.setVisibility(View.GONE);
-            imageView.setVisibility(View.VISIBLE);
-
-            try {
-                Glide.with(this)
-                        .load(Uri.parse(mediaFile.getFileUri()))
-                        .error(R.drawable.ic_baseline_image_24)
-                        .into(imageView);
-
-                // Применяем текущий поворот
-                applyRotation();
-
-            } catch (Exception e) {
-                imageView.setImageResource(R.drawable.ic_baseline_image_24);
-                Log.e("MediaViewer", "Error loading image: " + e.getMessage(), e);
-                applyRotation();
-            }
+    private void resetCurrentZoom() {
+        RecyclerView recyclerView = (RecyclerView) mediaViewPager.getChildAt(0);
+        if (recyclerView != null && pagerAdapter != null) {
+            pagerAdapter.resetZoomAt(recyclerView, currentPosition);
         }
     }
 
-    private void resetViewParameters() {
-        // Сбрасываем параметры изображения
-        ViewGroup.LayoutParams imageParams = imageView.getLayoutParams();
-        imageParams.width = ViewGroup.LayoutParams.MATCH_PARENT;
-        imageParams.height = ViewGroup.LayoutParams.MATCH_PARENT;
-        imageView.setLayoutParams(imageParams);
-        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    private void updateImmersiveMode(boolean playing) {
+        if (getActivity() == null) {
+            return;
+        }
+        if (playing && isCurrentPageVideo()) {
+            SystemUiHelper.enterImmersiveMode(getActivity().getWindow());
+        } else {
+            SystemUiHelper.exitImmersiveMode(getActivity().getWindow());
+        }
+    }
 
-        // Сбрасываем поворот для CustomVideoView (он сам управляет своим состоянием)
-        // Не вызываем setScaleType для CustomVideoView - его не существует
+    private void playVideoAt(int position) {
+        MediaFile mediaFile = mediaFiles.get(position);
+        if (!"video".equals(mediaFile.getFileType())) {
+            return;
+        }
+
+        RecyclerView recyclerView = (RecyclerView) mediaViewPager.getChildAt(0);
+        PlayerView playerView = pagerAdapter.getPlayerViewAt(recyclerView, position);
+        ZoomPanLayout zoomLayout = pagerAdapter.getZoomLayoutAt(recyclerView, position);
+        if (playerView == null || zoomLayout == null) {
+            mediaViewPager.post(() -> playVideoAt(position));
+            return;
+        }
+
+        zoomLayout.resetZoom();
+        zoomLayout.setOnZoomChangeListener(this::updateZoomState);
+        zoomLayout.setOnTapListener(new ZoomPanLayout.OnTapListener() {
+            @Override
+            public void onSingleTap() {
+                toggleControls();
+            }
+
+            @Override
+            public void onDoubleTap() {
+                togglePlayPause();
+            }
+        });
+
+        attachPlayerToView(playerView);
+
+        Uri uri = MediaStorageHelper.resolveLoadUri(mediaFile.getFileUri());
+        if (uri == null) {
+            Toast.makeText(getContext(), "Неверный URI видео", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        player.setMediaItem(MediaItem.fromUri(uri));
+        player.prepare();
+        player.play();
+        bottomBar.setVisibility(controlsVisible ? View.VISIBLE : View.GONE);
+    }
+
+    private void attachPlayerToView(PlayerView playerView) {
+        if (attachedPlayerView == playerView) {
+            return;
+        }
+        detachPlayerFromView();
+        attachedPlayerView = playerView;
+        attachedPlayerView.setPlayer(player);
+    }
+
+    private void detachPlayerFromView() {
+        if (attachedPlayerView != null) {
+            attachedPlayerView.setPlayer(null);
+            attachedPlayerView = null;
+        }
+    }
+
+    private void stopVideoPlayback() {
+        if (player != null) {
+            player.stop();
+            player.clearMediaItems();
+        }
+    }
+
+    private void togglePlayPause() {
+        if (player == null || !isCurrentPageVideo()) {
+            return;
+        }
+        if (player.getPlaybackState() == Player.STATE_ENDED) {
+            player.seekTo(0);
+            player.play();
+            return;
+        }
+        if (player.isPlaying()) {
+            player.pause();
+            showControls();
+        } else {
+            player.play();
+        }
+    }
+
+    private boolean isCurrentPageVideo() {
+        return currentPosition >= 0
+                && currentPosition < mediaFiles.size()
+                && "video".equals(mediaFiles.get(currentPosition).getFileType());
+    }
+
+    private void updatePlayPauseIcon() {
+        if (player == null) {
+            return;
+        }
+        if (player.getPlaybackState() == Player.STATE_ENDED) {
+            playPauseButton.setImageResource(R.drawable.ic_baseline_replay_24);
+        } else if (player.isPlaying()) {
+            playPauseButton.setImageResource(R.drawable.ic_baseline_pause_24);
+        } else {
+            playPauseButton.setImageResource(R.drawable.ic_baseline_play_arrow_24);
+        }
+    }
+
+    private void updateDurationUi() {
+        if (player == null) {
+            return;
+        }
+        long duration = player.getDuration();
+        if (duration > 0) {
+            seekBar.setMax((int) duration);
+            totalTimeText.setText(formatTime(duration));
+        }
+        currentTimeText.setText(formatTime(player.getCurrentPosition()));
+        if (!userSeeking) {
+            seekBar.setProgress((int) player.getCurrentPosition());
+        }
+    }
+
+    private void startProgressUpdates() {
+        stopProgressUpdates();
+        progressRunnable = new Runnable() {
+            @Override
+            public void run() {
+                updateDurationUi();
+                handler.postDelayed(this, PROGRESS_UPDATE_MS);
+            }
+        };
+        handler.post(progressRunnable);
+    }
+
+    private void stopProgressUpdates() {
+        if (progressRunnable != null) {
+            handler.removeCallbacks(progressRunnable);
+            progressRunnable = null;
+        }
     }
 
     private void toggleControls() {
-        Log.d("MediaViewer", "Toggle controls - currently visible: " + (videoControls.getVisibility() == View.VISIBLE));
-        if (videoControls.getVisibility() == View.VISIBLE) {
-            hideControls();
-        } else {
-            showControls();
-            if (isVideoPlaying) {
-                hideControlsDelayed();
-            }
+        controlsVisible = !controlsVisible;
+        applyControlsVisibility();
+        if (controlsVisible && player != null && player.isPlaying()) {
+            scheduleHideControls();
         }
     }
 
     private void showControls() {
-        videoControls.setVisibility(View.VISIBLE);
-        fileNameTextView.setVisibility(View.VISIBLE);
-        closeButton.setVisibility(View.VISIBLE);
+        controlsVisible = true;
+        applyControlsVisibility();
+    }
 
-        if (hideControlsRunnable != null) {
-            handler.removeCallbacks(hideControlsRunnable);
+    private void applyControlsVisibility() {
+        int controlsVisibility = controlsVisible ? View.VISIBLE : View.GONE;
+        topBar.setVisibility(controlsVisibility);
+        resetZoomButton.setVisibility(isMediaZoomed ? View.VISIBLE : View.GONE);
+
+        if (isCurrentPageVideo()) {
+            if (controlsVisible) {
+                bottomBar.setVisibility(View.VISIBLE);
+                seekBarRow.setVisibility(View.VISIBLE);
+                rewindButton.setVisibility(View.VISIBLE);
+                playPauseButton.setVisibility(View.VISIBLE);
+                forwardButton.setVisibility(View.VISIBLE);
+            } else {
+                bottomBar.setVisibility(View.GONE);
+            }
+        } else if (isMediaZoomed) {
+            bottomBar.setVisibility(View.VISIBLE);
+            seekBarRow.setVisibility(View.GONE);
+            rewindButton.setVisibility(View.GONE);
+            playPauseButton.setVisibility(View.GONE);
+            forwardButton.setVisibility(View.GONE);
+        } else {
+            bottomBar.setVisibility(View.GONE);
         }
     }
 
-    private void hideControls() {
-        videoControls.setVisibility(View.GONE);
-        fileNameTextView.setVisibility(View.GONE);
-        closeButton.setVisibility(View.GONE);
-    }
-
-    private void hideControlsDelayed() {
-        if (hideControlsRunnable != null) {
-            handler.removeCallbacks(hideControlsRunnable);
+    private void scheduleHideControls() {
+        if (!isCurrentPageVideo()) {
+            return;
         }
-
+        cancelHideControls();
         hideControlsRunnable = () -> {
-            if (isVideoPlaying) {
-                hideControls();
+            if (player != null && player.isPlaying()) {
+                controlsVisible = false;
+                applyControlsVisibility();
             }
         };
-
-        handler.postDelayed(hideControlsRunnable, 3000);
+        handler.postDelayed(hideControlsRunnable, HIDE_CONTROLS_DELAY_MS);
     }
 
-    private void startUpdateSeekBarCallback() {
-        if (updateSeekBarRunnable == null) {
-            updateSeekBarRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    if (customVideoView != null && customVideoView.getCurrentMediaPlayer() != null && isVideoPlaying) {
-                        int currentPosition = customVideoView.getCurrentPosition();
-                        seekBar.setProgress(currentPosition);
-                        handler.postDelayed(this, 1000);
-                    }
-                }
-            };
+    private void cancelHideControls() {
+        if (hideControlsRunnable != null) {
+            handler.removeCallbacks(hideControlsRunnable);
+            hideControlsRunnable = null;
         }
-
-        removeUpdateSeekBarCallback();
-        handler.post(updateSeekBarRunnable);
     }
 
-    private void removeUpdateSeekBarCallback() {
-        if (updateSeekBarRunnable != null) {
-            handler.removeCallbacks(updateSeekBarRunnable);
+    private void closeViewer() {
+        updateImmersiveMode(false);
+        requireActivity().getSupportFragmentManager().popBackStack();
+    }
+
+    private static String formatTime(long millis) {
+        if (millis < 0) {
+            millis = 0;
         }
+        long totalSeconds = millis / 1000;
+        long minutes = totalSeconds / 60;
+        long seconds = totalSeconds % 60;
+        return String.format(Locale.getDefault(), "%d:%02d", minutes, seconds);
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        Log.d("MediaViewer", "Fragment paused");
-        if (customVideoView.isPlaying()) {
-            customVideoView.pause();
+        if (player != null) {
+            player.pause();
         }
-        removeUpdateSeekBarCallback();
     }
 
     @Override
     public void onDestroyView() {
+        updateImmersiveMode(false);
+        stopProgressUpdates();
+        cancelHideControls();
+        detachPlayerFromView();
+        if (player != null) {
+            player.release();
+            player = null;
+        }
+        if (mediaViewPager != null) {
+            mediaViewPager.setAdapter(null);
+        }
         super.onDestroyView();
-        Log.d("MediaViewer", "Fragment view destroyed");
-        if (customVideoView.isPlaying()) {
-            customVideoView.stopPlayback();
-        }
-        removeUpdateSeekBarCallback();
-
-        if (hideControlsRunnable != null) {
-            handler.removeCallbacks(hideControlsRunnable);
-        }
     }
 }

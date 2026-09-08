@@ -1,10 +1,13 @@
 package com.example.seriestracker.data.entities;
 
 import androidx.room.Entity;
-import androidx.room.PrimaryKey;
 import androidx.room.Index;
+import androidx.room.PrimaryKey;
 
-@Entity(tableName = "series", indices = {@Index(value = {"title"}, unique = true)})
+@Entity(tableName = "series", indices = {
+        @Index(value = {"title"}, unique = true),
+        @Index(value = {"cloudId"}, unique = true)
+})
 public class Series {
     @PrimaryKey(autoGenerate = true)
     private long id;
@@ -13,9 +16,10 @@ public class Series {
     private String imageUri;
     private boolean isWatched;
     private String notes;
+    private String watchUrl;
+    private String watchAt;
     private long createdAt;
 
-    // Новые поля
     private String description;
     private String status;
     private boolean isFavorite;
@@ -24,15 +28,21 @@ public class Series {
     private int seasons;
     private int episodes;
 
+    private String cloudId;
+    private long updatedAt;
+    private boolean syncDirty;
+    private String cloudImagePath;
 
     public Series() {
         this.createdAt = System.currentTimeMillis();
+        this.updatedAt = this.createdAt;
         this.status = "planned";
         this.isFavorite = false;
         this.isWatched = false;
         this.rating = 0;
         this.seasons = 0;
         this.episodes = 0;
+        this.syncDirty = true;
     }
 
     public Series(String title) {
@@ -40,12 +50,13 @@ public class Series {
         this.title = title;
     }
 
-    // Геттеры
     public long getId() { return id; }
     public String getTitle() { return title; }
     public String getImageUri() { return imageUri; }
     public boolean getIsWatched() { return isWatched; }
     public String getNotes() { return notes; }
+    public String getWatchUrl() { return watchUrl; }
+    public String getWatchAt() { return watchAt; }
     public String getDescription() { return description; }
     public long getCreatedAt() { return createdAt; }
     public String getStatus() { return status; }
@@ -54,13 +65,18 @@ public class Series {
     public String getGenre() { return genre; }
     public int getSeasons() { return seasons; }
     public int getEpisodes() { return episodes; }
+    public String getCloudId() { return cloudId; }
+    public long getUpdatedAt() { return updatedAt; }
+    public boolean getSyncDirty() { return syncDirty; }
+    public String getCloudImagePath() { return cloudImagePath; }
 
-    // Сеттеры
     public void setId(long id) { this.id = id; }
     public void setTitle(String title) { this.title = title; }
     public void setImageUri(String imageUri) { this.imageUri = imageUri; }
     public void setIsWatched(boolean watched) { this.isWatched = watched; }
     public void setNotes(String notes) { this.notes = notes; }
+    public void setWatchUrl(String watchUrl) { this.watchUrl = watchUrl; }
+    public void setWatchAt(String watchAt) { this.watchAt = watchAt; }
     public void setDescription(String description) { this.description = description; }
     public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }
     public void setStatus(String status) { this.status = status; }
@@ -69,6 +85,13 @@ public class Series {
     public void setGenre(String genre) { this.genre = genre; }
     public void setSeasons(int seasons) { this.seasons = seasons; }
     public void setEpisodes(int episodes) { this.episodes = episodes; }
+    public void setCloudId(String cloudId) { this.cloudId = cloudId; }
+    public void setUpdatedAt(long updatedAt) { this.updatedAt = updatedAt; }
+    public void setSyncDirty(boolean syncDirty) { this.syncDirty = syncDirty; }
+    public void setCloudImagePath(String cloudImagePath) { this.cloudImagePath = cloudImagePath; }
 
-
+    public void markDirty() {
+        this.updatedAt = System.currentTimeMillis();
+        this.syncDirty = true;
+    }
 }
