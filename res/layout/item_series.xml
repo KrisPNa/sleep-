@@ -5,74 +5,136 @@
     android:layout_height="wrap_content"
     android:layout_marginBottom="@dimen/margin_small"
     android:contentDescription="Карточка сериала"
-    app:cardCornerRadius="@dimen/corner_radius_medium"
-    app:cardElevation="@dimen/card_elevation"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
     app:cardBackgroundColor="@color/background_white"
-    app:strokeColor="#E0E0E0"
+    app:strokeColor="@color/divider"
     app:strokeWidth="1dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="@dimen/margin_medium">
+        android:padding="12dp"
+        android:gravity="top">
 
-        <!-- Изображение сериала -->
-        <ImageView
-            android:id="@+id/seriesImageView"
-            android:layout_width="70dp"
-            android:layout_height="90dp"
-            android:scaleType="centerCrop"
-            android:background="@color/background_gray"
-            android:contentDescription="Постер сериала"
-            android:layout_marginEnd="@dimen/margin_medium" />
+        <!-- Обложка + статус поверх -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="88dp"
+            android:layout_height="118dp"
+            android:layout_marginEnd="12dp"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="0dp">
 
-        <!-- Информация о сериале -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <ImageView
+                    android:id="@+id/seriesImageView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:background="@color/background_gray"
+                    android:contentDescription="Постер сериала" />
+
+                <TextView
+                    android:id="@+id/statusTextView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="bottom"
+                    android:gravity="center"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp"
+                    android:text="в планах"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="@android:color/white"
+                    android:background="#997E57C2"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+            </FrameLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Текст -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:minHeight="118dp">
 
-            <!-- Название -->
-            <TextView
-                android:id="@+id/titleTextView"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Название сериала"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:textColor="@color/text_dark"
-                android:maxLines="1"
-                android:ellipsize="end" />
-
-            <!-- Статус и просмотр в одной строке -->
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginTop="6dp"
-                android:gravity="center_vertical">
+                android:gravity="top">
 
-                <!-- Статус сериала -->
                 <TextView
-                    android:id="@+id/statusTextView"
-                    android:layout_width="wrap_content"
+                    android:id="@+id/titleTextView"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Смотрю"
-                    android:textSize="11sp"
-                    android:paddingHorizontal="8dp"
-                    android:paddingVertical="3dp"
-                    android:textColor="@color/text_light"
+                    android:layout_weight="1"
+                    android:text="Название сериала"
+                    android:textSize="17sp"
                     android:textStyle="bold"
-                    android:background="@color/status_planned"
-                    android:layout_marginEnd="6dp" />
+                    android:textColor="@color/text_dark"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:layout_marginEnd="4dp" />
 
-
-
+                <ImageButton
+                    android:id="@+id/menuButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Меню"
+                    android:src="@drawable/ic_baseline_more_vert_24"
+                    android:tint="@color/text_gray"
+                    android:padding="6dp" />
             </LinearLayout>
 
-            <!-- Заметки -->
+            <!-- Иконки: ссылка на просмотр + заметки -->
+            <LinearLayout
+                android:id="@+id/metaIconsRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="6dp">
+
+                <ImageView
+                    android:id="@+id/watchAtIndicator"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:layout_marginEnd="10dp"
+                    android:contentDescription="@string/watch_at_indicator"
+                    android:src="@drawable/ic_baseline_play_circle_24"
+                    android:tint="@color/primary_blue"
+                    android:visibility="gone" />
+
+                <ImageView
+                    android:id="@+id/favoriteBookmark"
+                    android:layout_width="16dp"
+                    android:layout_height="20dp"
+                    android:layout_marginEnd="10dp"
+                    android:src="@drawable/ic_bookmark_favorite_24"
+                    android:contentDescription="В избранном"
+                    android:visibility="gone" />
+
+                <ImageView
+                    android:id="@+id/notesIndicator"
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:contentDescription="Есть заметки"
+                    android:src="@drawable/ic_baseline_notes_24"
+                    android:tint="@color/text_gray"
+                    android:visibility="gone" />
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/notesTextView"
                 android:layout_width="match_parent"
@@ -81,23 +143,9 @@
                 android:textSize="13sp"
                 android:textColor="@color/text_gray"
                 android:layout_marginTop="8dp"
-                android:maxLines="2"
-                android:ellipsize="end" />
-
+                android:maxLines="3"
+                android:ellipsize="end"
+                android:lineSpacingExtra="2dp" />
         </LinearLayout>
-
-        <!-- Кнопка избранного -->
-        <ImageButton
-            android:id="@+id/favoriteButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_gravity="center"
-            android:background="@android:color/transparent"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_baseline_star_border_24"
-            android:contentDescription="Добавить в избранное"
-            android:tint="@color/primary_blue" />
-
     </LinearLayout>
-
 </com.google.android.material.card.MaterialCardView>

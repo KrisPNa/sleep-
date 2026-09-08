@@ -34,6 +34,12 @@
             app:showAsAction="never" />
 
         <item
+            android:id="@+id/sort_by_status_completed"
+            android:title="Завершено"
+            android:checkable="true"
+            app:showAsAction="never" />
+
+        <item
             android:id="@+id/sort_by_status_dropped"
             android:title="Брошено"
             android:checkable="true"
@@ -41,15 +47,11 @@
 
         <item
             android:id="@+id/sort_by_status_planned"
-            android:title="Планирую"
+            android:title="Запланировано"
             android:checkable="true"
             app:showAsAction="never" />
 
-        <item
-            android:id="@+id/sort_by_status_completed"
-            android:title="Посмотрел"
-            android:checkable="true"
-            app:showAsAction="never" />
+
     </group>
 
 </menu>

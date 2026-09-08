@@ -34,11 +34,35 @@
                 android:layout_height="75dp"
                 android:layout_marginBottom="32dp"
                 android:gravity="center"
-                android:text="Настройки резервного копирования"
+                android:text="Настройки"
                 android:textColor="?android:attr/textColorPrimary"
                 android:textSize="24sp"
                 android:textStyle="bold" />
         </LinearLayout>
+
+        <!-- Тема -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Тёмная тема"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="16sp" />
+
+            <Switch
+                android:id="@+id/dark_theme_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp" />
+        </LinearLayout>
+
         <!-- Автоматический бэкап -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -130,17 +154,72 @@
         <!-- Прогресс бар (скрытый по умолчанию) -->
         <ProgressBar
             android:id="@+id/progress_bar"
-            style="?android:attr/progressBarStyle"
-            android:layout_width="wrap_content"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
+            android:layout_marginBottom="8dp"
+            android:max="100"
             android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/progress_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:gravity="center"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <!-- Сайты для поиска лакорнов -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:text="@string/watch_search_sites_title"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="@string/watch_search_sites_hint"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp" />
+
+        <EditText
+            android:id="@+id/watch_search_sites_edit"
+            style="@style/Widget.App.EditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:gravity="top|start"
+            android:hint="@string/watch_search_sites_hint_field"
+            android:inputType="textUri|textMultiLine"
+            android:minHeight="120dp"
+            android:minLines="4" />
+
+        <Button
+            android:id="@+id/save_watch_search_sites_btn"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginBottom="24dp"
+            android:text="@string/watch_search_sites_save"
+            android:textAllCaps="false"
+            android:textSize="16sp"
+            app:strokeColor="?android:attr/colorAccent"
+            app:strokeWidth="1dp" />
 
         <!-- Информационный раздел -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="24dp"
             app:cardElevation="2dp"
             app:cardCornerRadius="8dp"
             app:cardBackgroundColor="?android:attr/colorBackgroundFloating">
@@ -163,7 +242,16 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="• Резервные копии сохраняются в папку приложения на устройстве"
+                    android:text="• Фото и обложки в копии сжимаются для меньшего размера; видео сохраняются как есть"
+                    android:textSize="12sp"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:lineSpacingExtra="2dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="• Хранятся последние 5 ZIP-копий"
                     android:textSize="12sp"
                     android:textColor="?android:attr/textColorSecondary"
                     android:lineSpacingExtra="2dp" />
@@ -188,6 +276,46 @@
 
             </LinearLayout>
         </androidx.cardview.widget.CardView>
+
+        <!-- Аккаунт (внизу страницы) -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Аккаунт"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/cloud_account_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Не выполнен вход"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/cloud_auto_sync_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="Синхронизация с сайтом автоматическая, пока выполнен вход в аккаунт."
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/cloud_account_btn"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginBottom="16dp"
+            android:text="Войти в аккаунт"
+            android:textAllCaps="false"
+            android:textSize="16sp"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            app:strokeColor="?android:attr/colorAccent"
+            app:strokeWidth="1dp" />
 
     </LinearLayout>
 </ScrollView>

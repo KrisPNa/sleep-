@@ -89,7 +89,7 @@
                 android:layout_height="wrap_content"
                 android:text="0"
                 android:textSize="14sp"
-                android:textColor="@color/white"
+                android:textColor="@color/counter_badge_text"
                 android:background="@drawable/counter_background_small"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="2dp" />

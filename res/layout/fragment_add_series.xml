@@ -60,33 +60,52 @@
             android:layout_height="wrap_content"
             android:textColor="@color/text_dark"
             android:hint="Введите название"
-            android:inputType="text"
+            android:inputType="textCapSentences"
             android:imeOptions="actionNext"
             android:minHeight="48dp"
             android:backgroundTint="@color/primary_blue"
             android:layout_marginBottom="16dp" />
 
-        <!-- Заметки -->
+        <!-- Ссылка для воспроизведения: только поиск (поле скрыто) -->
+        <EditText
+            android:id="@+id/watchAtEditText"
+            style="@style/Widget.App.EditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:inputType="textCapSentences|textMultiLine" />
+
+        <Button
+            android:id="@+id/searchWatchAtButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:minHeight="48dp"
+            android:text="Найти ссылку для воспроизведения"
+            android:textAllCaps="false"
+            android:backgroundTint="@color/primary_blue_light"
+            android:textColor="@color/white" />
+
+        <!-- Ссылки -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Заметки (необязательно):"
+            android:text="Ссылки:"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="@color/text_dark"
             android:layout_marginBottom="8dp" />
 
         <EditText
-            android:id="@+id/notesEditText"
+            android:id="@+id/watchUrlEditText"
             style="@style/Widget.App.EditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="@color/text_dark"
-            android:hint="Дополнительная информация"
-            android:inputType="textMultiLine"
-            android:imeOptions="actionDone"
-            android:minLines="3"
-            android:minHeight="120dp"
+            android:hint="Ссылки"
+            android:inputType="textUri|textMultiLine"
+            android:imeOptions="actionNext"
+            android:minHeight="48dp"
             android:backgroundTint="@color/primary_blue"
             android:layout_marginBottom="16dp" />
 
@@ -118,24 +137,128 @@
             android:contentDescription="Изображение сериала"
             android:layout_marginBottom="16dp" />
 
-        <!-- Выбор коллекций -->
+        <!-- Заметки -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Выберите коллекции:"
+            android:text="Заметки (необязательно):"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_dark"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/notesEditText"
+            style="@style/Widget.App.EditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_dark"
+            android:hint="Заметки"
+            android:inputType="textMultiLine"
+            android:imeOptions="actionDone"
+            android:minLines="3"
+            android:minHeight="120dp"
+            android:backgroundTint="@color/primary_blue"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Выбор коллекций (сворачиваемый) -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Коллекции:"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="@color/text_dark"
             android:layout_marginBottom="8dp" />
 
         <LinearLayout
-            android:id="@+id/collectionsLayout"
+            android:id="@+id/collectionsSection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="8dp"
             android:background="@color/background_gray"
-            android:layout_marginBottom="24dp" />
+            android:layout_marginBottom="24dp">
+
+            <LinearLayout
+                android:id="@+id/collectionsHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="12dp"
+                android:minHeight="48dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/collectionsHeaderTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Выбрать коллекции"
+                        android:textSize="16sp"
+                        android:textColor="@color/text_dark"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/collectionsHeaderSubtitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Не выбрано"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_gray"
+                        android:layout_marginTop="2dp" />
+
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/collectionsExpandIcon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_baseline_keyboard_arrow_down_24"
+                    android:tint="@color/primary_blue"
+                    android:contentDescription="Развернуть список коллекций" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/collectionsExpandedContent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="8dp"
+                android:visibility="gone">
+
+                <EditText
+                    android:id="@+id/collectionsSearchEditText"
+                    style="@style/Widget.App.EditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Поиск по коллекциям"
+                    android:inputType="text"
+                    android:imeOptions="actionDone"
+                    android:minHeight="48dp"
+                    android:textColor="@color/text_dark"
+                    android:backgroundTint="@color/primary_blue"
+                    android:layout_marginBottom="8dp" />
+
+                <LinearLayout
+                    android:id="@+id/collectionsLayout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+
+            </LinearLayout>
+
+        </LinearLayout>
 
         <!-- Кнопка сохранения -->
         <Button
